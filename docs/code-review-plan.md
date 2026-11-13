@@ -135,7 +135,7 @@
 | M37-1 | domains/ 吞错专项 | 61 处 | ✅ 2026-11-13 |
 | M37-2 | a2a/ + a2ui/ + acp/ 吞错专项 | 58 处（协议面，只加注释） | ✅ 2026-11-13 |
 | M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ✅ 2026-11-13 |
-| M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ⬜ |
+| M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ✅ 2026-11-13 |
 | M37-5 | cmd/ 吞错专项 | 43 处 | ⬜ |
 | M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ⬜ |
 | M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ⬜ |
@@ -898,3 +898,20 @@
 - **门禁**：build / vet 全绿；`golangci-lint run ./agentcore/... ./doomloop/... ./provider/... ./prompt/...` **0 issues**；`go test -race` 四包全绿；`make check-arch doc-check verify-layers debt-check` 通过
 - **指标重扫**（149 文件）：静默吞错 **34 → 1**（仅剩 permission 敏感路径）、被忽略 error 2（历史存量）、裸 fmt / TODO / 未注释导出 / >120 行函数 0
 - **提交**：64075d90（refactor）、9a91af3b（docs + changelog）
+
+### M37-4（2026-11-13）tools/ + mcp/ + server/ + skill/ 吞错专项 ✅
+
+- **审阅范围**：`tools/`（31）、`mcp/`（14）、`server/`（10）、`skill/`（6）共 **61 处** 站点、32 个文件
+- **判定结果**：(a) 有意降级 **61 处**；(b) 疑似漏错 **0 处**
+  - **外部程序/引擎不可用降级**（15 处）：`grep.go`/`find.go` 在 rg/fd 缺失或启动失败时回退内置 Go 实现；`office_pdf.go` 区分超时与转换失败并附 stderr；`cnipr.go` 通道级失败补 `patent_web_search` 去向；`browser_lightpanda.go` CDP 健康检查未就绪继续轮询
+  - **子进程非零退出按结果返回**（3 处）：`bash.go` 退出码语义、`browser_agent_browser.go` stdout JSON 优先于退出码、`find.go` fd stderr 归因
+  - **可选增强/展示降级**（10 处）：`browser_camofox.go` VNC 地址为空串、`browser_url.go` 解析失败不判私有、`browser_supervisor.go` 重连退避与帧树快照保留、`browser_recorder.go` 录制协程收敛
+  - **后台协程取消静默退出**（10 处）：`mcp/http_session.go` 三处退避取消、`client_reconnect.go` 四阶段失败事件、`server/disclosure_events.go` / `enablement_events.go` 触发器停止
+  - **best-effort 清理与网络终止**（4 处）：`mcp/http.go` DELETE 会话、`browser_advanced.go` 进程句柄回收、`tools/rand.go` 熵源失败回退 0
+  - **结构化缺失视为空/诊断**（12 处）：`mcp/install.go` 家目录与配置缺失、`config_trust.go` 信任库未建、`skill/skill.go` 可选技能根、`include.go` 引用不存在、`frontmatter.go` 四处解析问题转 diagnostic
+  - **状态收敛**（7 处）：`server/chat.go`/`skills.go` SSE 序列化失败置 dead、`server/disclosure.go` 深拷贝降级与构图失败落任务状态、`server/evidence.go` 两处判定失败标记 failed
+- **发现分级**：P0 0 项；P2 0 项
+- **精炼**（无行为变化）：**32 文件 / 61 处注释**（`git diff --stat` 61 insertions、0 deletions，新增行全为 `//`）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./tools/... ./mcp/... ./server/... ./skill/...` **0 issues**；`go test -race -count=1` 四组包全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）；全仓 `go test -race -count=1 ./...` 唯一失败仍为 `knowledge/sqlite` 的 `TestSearchLaws`（预存环境依赖，与本卡无关）
+- **指标重扫**（tools/mcp/server/skill）：静默吞错 **61 → 0**
+- **提交**：PENDING（refactor）、PENDING（docs + changelog）

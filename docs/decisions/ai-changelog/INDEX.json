@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T17:05:00+08:00",
-  "total": 519,
+  "updated": "2026-11-13T17:20:00+08:00",
+  "total": 520,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "tools",
+      "title": "M37-4 工具与接入层吞错专项：补 61 处意图注释",
+      "file": "2026-11-13.md",
+      "line": 89
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",
