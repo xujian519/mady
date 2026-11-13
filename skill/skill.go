@@ -230,6 +230,7 @@ func LoadPath(path string) ([]Skill, []Diagnostic, error) {
 	}
 	info, err := os.Stat(path)
 	if err != nil {
+		// 路径不存在→视为「无技能」，这是可选技能根的正常情况。
 		if os.IsNotExist(err) {
 			return nil, nil, nil
 		}

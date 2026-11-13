@@ -167,6 +167,7 @@ func runFd(ctx context.Context, fdPath, searchPath, pattern string, limit int, c
 	//nolint:gosec // G104: best-effort walk; errors are non-fatal here
 	filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			// 遍历出错→跳过该条目，.gitignore 收集属 best-effort。
 			return nil
 		}
 		if d.IsDir() {
@@ -189,6 +190,7 @@ func runFd(ctx context.Context, fdPath, searchPath, pattern string, limit int, c
 	cmd := exec.CommandContext(ctx, fdPath, args...) //nolint:gosec // G204: fd subprocess; path validated by sandbox
 	output, err := cmd.Output()
 	if err != nil {
+		// 子进程失败：有 stderr 说明 fd 自身报错，否则视为不可用并回退 Go 实现。
 		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
 			return resultErrf("fd error: %s", string(exitErr.Stderr))
 		}

@@ -127,6 +127,7 @@ func (s *CDPSupervisor) runSupervisor() {
 		}
 
 		if err := s.connectAndListen(); err != nil {
+			// 连接失败→按指数退避重连；超过上限则退出守护协程（由上层按未连接处理）。
 			s.mu.RLock()
 			count := s.reconnectCount
 			s.mu.RUnlock()
@@ -219,6 +220,7 @@ func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
 	go func() {
 		for e, err := range cdp.Events(ctx, session, page.JavascriptDialogOpening) {
 			if err != nil {
+				// 事件流结束→退出对话框监听协程（会话已失效，无补偿动作）。
 				return
 			}
 			dialogID := fmt.Sprintf("dlg_%d", time.Now().UnixNano())
@@ -244,6 +246,7 @@ func (s *CDPSupervisor) listenForDialogs(ctx context.Context) {
 	go func() {
 		for e, err := range cdp.Events(ctx, session, page.JavascriptDialogClosed) {
 			if err != nil {
+				// 事件流结束→退出监听协程，残留对话框由下次导航清理。
 				return
 			}
 			s.mu.Lock()
@@ -270,6 +273,7 @@ func (s *CDPSupervisor) trackFrameTree(ctx context.Context) {
 	go func() {
 		for _, err := range attached {
 			if err != nil {
+				// 事件流结束→退出帧树跟踪协程（帧树仅用于展示，不影响操作）。
 				return
 			}
 			s.mu.Lock()
@@ -281,6 +285,7 @@ func (s *CDPSupervisor) trackFrameTree(ctx context.Context) {
 	go func() {
 		for _, err := range detached {
 			if err != nil {
+				// 事件流结束→同上退出跟踪协程。
 				return
 			}
 			s.mu.Lock()
@@ -293,6 +298,7 @@ func (s *CDPSupervisor) trackFrameTree(ctx context.Context) {
 func (s *CDPSupervisor) updateFrameTree(ctx context.Context) {
 	res, err := chromedp.Call(ctx, page.GetFrameTree, cdp.Empty{})
 	if err != nil {
+		// 查询帧树失败→保留上一次帧树快照（仅用于展示，不阻断操作）。
 		return
 	}
 	tree := res.FrameTree

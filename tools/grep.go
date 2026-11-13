@@ -164,10 +164,12 @@ func runRipgrep(ctx context.Context, rgPath, searchPath string, input GrepToolIn
 	cmd := exec.CommandContext(ctx, rgPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		// 拿不到 rg 输出管道→回退内置 Go 实现，结果等价。
 		return runGoGrep(ctx, searchPath, input, limit, isDir, cfg)
 	}
 
 	if err := cmd.Start(); err != nil {
+		// rg 无法启动（权限/路径问题）→回退内置 Go 实现。
 		return runGoGrep(ctx, searchPath, input, limit, isDir, cfg)
 	}
 

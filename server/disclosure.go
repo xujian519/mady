@@ -127,11 +127,13 @@ func cloneAnalysisReport(src *disclosure.AnalysisReport) *disclosure.AnalysisRep
 	}
 	data, err := json.Marshal(src)
 	if err != nil {
+		// 序列化失败→降级为浅拷贝（只读快照，字段不会被并发改写）。
 		cp := *src
 		return &cp
 	}
 	var dst disclosure.AnalysisReport
 	if err := json.Unmarshal(data, &dst); err != nil {
+		// 反序列化失败→降级为浅拷贝（只读快照，字段不会被并发改写）。
 		cp := *src
 		return &cp
 	}
@@ -205,6 +207,7 @@ func (m *disclosureTaskManager) executeTask(ctx context.Context, task *disclosur
 	}
 	compiled, err := disclosure.BuildDisclosureAnalysisGraphWithOpts(provider, opts...)
 	if err != nil {
+		// 构图失败→把错误落到任务状态并结束，异步任务无返回值可上抛。
 		task.mu.Lock()
 		task.Status = "failed"
 		task.Err = fmt.Errorf("构建分析图失败: %w", err)

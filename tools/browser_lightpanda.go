@@ -135,6 +135,7 @@ func isCDPReady(cdpURL string) bool {
 
 	conn, err := exec.CommandContext(context.Background(), "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", fmt.Sprintf("http://127.0.0.1:%d/json/version", port)).Output() //nolint:gosec // G204: curl health check to localhost only
 	if err != nil {
+		// 健康检查请求失败→CDP 尚未就绪，返回 false 由调用方继续轮询。
 		return false
 	}
 

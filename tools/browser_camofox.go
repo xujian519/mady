@@ -390,16 +390,19 @@ func (c *CamofoxClient) CloseSession(ctx context.Context) error {
 func (c *CamofoxClient) GetVNCURL(ctx context.Context) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/health", nil)
 	if err != nil {
+		// 请求构造失败→返回空串表示「无 VNC 地址」，VNC 属可选增强能力。
 		return ""
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		// 健康检查不可达→同上降级为空串。
 		return ""
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	var health map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
+		// 响应不可解析→同上降级为空串。
 		return ""
 	}
 

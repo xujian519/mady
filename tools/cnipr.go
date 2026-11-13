@@ -114,6 +114,7 @@ func (t *cniprTool) Run(_ context.Context, args json.RawMessage) (any, error) {
 		}
 		result, err := t.channel.Search(strings.TrimSpace(input.Query), input.Limit)
 		if err != nil {
+			// 通道级失败→补上改用 patent_web_search 的去向提示后上抛。
 			return nil, cniprFallbackError(err)
 		}
 		return CNIPRToolResult{Mode: mode, Search: result, Rendered: renderCNIPRSearch(result)}, nil
@@ -123,6 +124,7 @@ func (t *cniprTool) Run(_ context.Context, args json.RawMessage) (any, error) {
 		}
 		items, err := t.channel.PDFLinks(input.Numbers)
 		if err != nil {
+			// 通道级失败→补上改用 patent_web_search 的去向提示后上抛。
 			return nil, cniprFallbackError(err)
 		}
 		return CNIPRToolResult{Mode: mode, PDFLinks: items, Rendered: renderCNIPRPDFLinks(items)}, nil
@@ -132,6 +134,7 @@ func (t *cniprTool) Run(_ context.Context, args json.RawMessage) (any, error) {
 		}
 		items, err := t.channel.LegalStatus(input.Numbers)
 		if err != nil {
+			// 通道级失败→补上改用 patent_web_search 的去向提示后上抛。
 			return nil, cniprFallbackError(err)
 		}
 		return CNIPRToolResult{Mode: mode, Legal: items, Rendered: renderCNIPRLegal(items)}, nil

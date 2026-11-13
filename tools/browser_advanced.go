@@ -119,6 +119,7 @@ func (r *OrphanReaper) ReapOrphans() (int, error) {
 func isProcessAlive(pid int) bool {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
+		// 找不到进程句柄→按「已退出」处理（回收器只需判断存活）。
 		return false
 	}
 
@@ -129,6 +130,7 @@ func isProcessAlive(pid int) bool {
 func killProcess(pid int) {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
+		// 找不到进程句柄→无需清理，直接返回。
 		return
 	}
 	_ = proc.Signal(syscall.SIGTERM)

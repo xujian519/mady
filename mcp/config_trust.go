@@ -44,6 +44,7 @@ func loadTrustStore(madyHome string) (*trustStoreFile, error) {
 	store := &trustStoreFile{Configs: map[string]string{}}
 	data, err := os.ReadFile(trustStorePath(madyHome))
 	if err != nil {
+		// 信任库尚未创建→返回空存储（首次运行即此路径）。
 		if os.IsNotExist(err) {
 			return store, nil
 		}

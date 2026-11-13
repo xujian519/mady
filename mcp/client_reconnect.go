@@ -82,23 +82,27 @@ func (c *Client) tryReconnect(ctx context.Context) bool {
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		// 建管道失败→发失败事件并返回 false，由上层按退避策略重试。
 		c.emitReconnectEvent(ReconnectPhaseFailed, "stdin_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		// 建管道失败→关闭已建管道、发失败事件并返回 false。
 		_ = stdin.Close()
 		c.emitReconnectEvent(ReconnectPhaseFailed, "stdout_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		// 建管道失败→关闭已建管道、发失败事件并返回 false。
 		_ = stdin.Close()
 		_ = stdout.Close()
 		c.emitReconnectEvent(ReconnectPhaseFailed, "stderr_pipe", c.reconnectAttempts, err)
 		return false
 	}
 	if err := cmd.Start(); err != nil {
+		// 进程启动失败→关闭全部管道、发失败事件并返回 false。
 		_ = stdin.Close()
 		_ = stdout.Close()
 		_ = stderr.Close()

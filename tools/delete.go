@@ -123,6 +123,7 @@ func NewDeleteTool(cwd string, cfg *DeleteToolConfig) *agentcore.Tool { //nolint
 
 			info, err := cfg.Operations.Stat(ctx, resolved)
 			if err != nil {
+				// 不存在与其他 stat 失败分流：前者是可预期入参问题，后者带原始错误上抛。
 				if os.IsNotExist(err) {
 					return resultErrf("path not found: %s", input.Path)
 				}

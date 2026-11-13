@@ -133,6 +133,7 @@ func (m *AgentBrowserManager) discoverCDPURL(socketDir string) string {
 	cdpFile := filepath.Join(socketDir, "cdp_url")
 	data, err := os.ReadFile(cdpFile) //nolint:gosec // G304: path under managed socket dir
 	if err != nil {
+		// 未就绪的会话没有 cdp_url 文件→返回空串，由调用方按「未发现 CDP」处理。
 		return ""
 	}
 	return strings.TrimSpace(string(data))
@@ -207,6 +208,7 @@ func (m *AgentBrowserManager) runABCommand(taskID string, command string, args [
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		// 进程非零退出但 stdout 有 JSON→按命令结果返回，非零退出不等于工具失败。
 		outStr := strings.TrimSpace(stdout.String())
 		errStr := strings.TrimSpace(stderr.String())
 

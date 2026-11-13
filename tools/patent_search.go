@@ -191,6 +191,7 @@ func parseJSONOrRaw(raw string) any {
 	}
 	var v any
 	if err := json.Unmarshal([]byte(raw), &v); err != nil {
+		// 非 JSON 输出→按原始文本返回，调用方自行展示。
 		return raw
 	}
 	return v

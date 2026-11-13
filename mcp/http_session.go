@@ -105,6 +105,7 @@ func (c *HTTPClient) runServerStream() {
 				state.retry = time.Second
 			}
 			if err := sleepContext(c.bgCtx, state.retry); err != nil {
+				// 退避期间后台上下文被取消→结束该协程（客户端正在关闭）。
 				return
 			}
 			continue
@@ -124,6 +125,7 @@ func (c *HTTPClient) runServerStream() {
 				c.emitReconnectEvent(ReconnectPhaseFailed, ReconnectReasonServerStream404, reconnectAttempts, staleSession, "", state.lastEventID, reinitErr)
 				c.reportAsyncError(reinitErr)
 				if err := sleepContext(c.bgCtx, time.Second); err != nil {
+					// 退避期间后台上下文被取消→结束该协程。
 					return
 				}
 				continue
@@ -140,6 +142,7 @@ func (c *HTTPClient) runServerStream() {
 			state.retry = time.Second
 		}
 		if err := sleepContext(c.bgCtx, state.retry); err != nil {
+			// 退避期间后台上下文被取消→结束该协程。
 			return
 		}
 	}

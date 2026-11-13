@@ -97,6 +97,7 @@ func expandIncludesRecursive(
 		} else {
 			data, err := os.ReadFile(fullPath) //nolint:gosec // G304: path from include resolution with known root
 			if err != nil {
+				// 不存在→给出可定位的引用来源；其余读错误带完整路径包装上抛。
 				if os.IsNotExist(err) {
 					return "", fmt.Errorf(
 						"included file not found: %s (referenced from base directory %s)",

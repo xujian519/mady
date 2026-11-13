@@ -47,6 +47,7 @@ func (c *Client) callWithRetry(ctx context.Context, method string, params any, o
 		msg["params"] = params
 	}
 	if err := c.writeMessage(msg); err != nil {
+		// 写失败：仅「客户端已关闭」且仍有重试额度才重连重试，其余错误包装上抛。
 		if errors.Is(err, errClientClosed) && retriesLeft > 0 && c.tryReconnect(ctx) {
 			return c.callWithRetry(ctx, method, params, out, retriesLeft-1)
 		}

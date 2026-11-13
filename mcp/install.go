@@ -70,6 +70,7 @@ var knownAgents = []struct {
 func agentConfigPaths(agent string) []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
+		// 无法解析家目录→返回 nil，该 agent 不参与安装（其他项照常）。
 		return nil
 	}
 	var paths []string
@@ -262,6 +263,7 @@ func UninstallMady(agentName string, dryRun bool) (*InstallResult, error) {
 
 	cfg, err := LoadMCPConfig(target.ConfigPath)
 	if err != nil {
+		// 配置文件不存在→写入结构化「无需卸载」结论，而非报错。
 		if os.IsNotExist(err) {
 			result.Error = fmt.Errorf("config file %s does not exist; nothing to uninstall", target.ConfigPath)
 			return result, nil
@@ -282,6 +284,7 @@ func UninstallMady(agentName string, dryRun bool) (*InstallResult, error) {
 func loadOrCreateConfig(path string) (*MCPConfigFile, error) {
 	cfg, err := LoadMCPConfig(path)
 	if err != nil {
+		// 文件不存在→返回空配置，安装流程会新建该文件。
 		if os.IsNotExist(err) {
 			return &MCPConfigFile{}, nil
 		}

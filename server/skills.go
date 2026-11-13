@@ -110,6 +110,7 @@ func (s *Server) handleSkillEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		payload, err := json.Marshal(data)
 		if err != nil {
+			// 事件无法序列化→标记流死亡并停止发送，避免写出半帧。
 			slog.Error("server: SSE marshal error", "event", eventType, "err", err)
 			dead.Store(true)
 			return

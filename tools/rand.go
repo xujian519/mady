@@ -13,6 +13,7 @@ func cryptoIntn(n int) int {
 	}
 	ret, err := rand.Int(rand.Reader, big.NewInt(int64(n)))
 	if err != nil {
+		// 系统熵源不可用→回退 0（仅用于抖动/抽样，不承载安全语义）。
 		return 0
 	}
 	return int(ret.Int64())

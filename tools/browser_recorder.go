@@ -78,6 +78,7 @@ func (r *CDPRecorder) captureFrames(ctx context.Context) {
 	go func() {
 		for e, err := range cdp.Events(ctx, session, page.ScreencastFrame) {
 			if err != nil {
+				// 帧事件流结束或报错→停止录制协程，已录制的帧保留。
 				return
 			}
 			// NOTE: do not read r.isRecording here without the lock — StopRecording

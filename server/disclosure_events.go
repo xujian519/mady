@@ -119,6 +119,7 @@ func (t *InventivenessTrigger) onEvent(ev agentcore.Event) {
 
 	// 检查触发器的 context 是否已被取消（Stop 被调用）。
 	if err := t.ctx.Err(); err != nil {
+		// 触发器已停止→安静跳过本次评估，不视为失败。
 		t.logger.Debug("inventiveness: 跳过（触发器已停止）", "task_id", completed.TaskID)
 		return
 	}
@@ -130,6 +131,7 @@ func (t *InventivenessTrigger) onEvent(ev agentcore.Event) {
 	input := buildInventivenessInput(report, completed.EvidenceChunks, completed.EvidenceCoverage)
 	result, err := t.runGraph(t.ctx, input)
 	if err != nil {
+		// 子图执行失败→记错误日志并放弃本次评估，不影响已产出报告。
 		t.logger.Error("inventiveness: 子图执行失败",
 			"task_id", completed.TaskID,
 			"error", err,

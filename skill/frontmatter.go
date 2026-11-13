@@ -204,6 +204,7 @@ func parseFrontmatterFields(header string, path string) (map[string]string, []Di
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		// 读取中断→转为 diagnostic 返回，已解析字段仍然保留。
 		return fields, append(diagnostics, Diagnostic{
 			Path:    path,
 			Message: err.Error(),
@@ -308,6 +309,7 @@ func parseMadyExtension(raw string, path string) (*MadyExtension, []Diagnostic) 
 	}
 	var doc map[string]any
 	if err := yaml.Unmarshal([]byte(header), &doc); err != nil {
+		// YAML 语法错误→转为 diagnostic 返回，不阻断其余技能加载。
 		return nil, []Diagnostic{{
 			Path:    path,
 			Message: fmt.Sprintf("mady: YAML parse error: %v", err),
@@ -320,6 +322,7 @@ func parseMadyExtension(raw string, path string) (*MadyExtension, []Diagnostic) 
 	// Re-marshal the mady sub-tree so we can unmarshal into MadyExtension.
 	madyBytes, err := yaml.Marshal(rawMady)
 	if err != nil {
+		// mady 子树无法重新序列化→转为 diagnostic 返回。
 		return nil, []Diagnostic{{
 			Path:    path,
 			Message: fmt.Sprintf("mady: marshal error: %v", err),
@@ -327,6 +330,7 @@ func parseMadyExtension(raw string, path string) (*MadyExtension, []Diagnostic) 
 	}
 	var ext MadyExtension
 	if err := yaml.Unmarshal(madyBytes, &ext); err != nil {
+		// mady 扩展结构不合法→转为 diagnostic 返回。
 		return nil, []Diagnostic{{
 			Path:    path,
 			Message: fmt.Sprintf("mady: extension parse error: %v", err),

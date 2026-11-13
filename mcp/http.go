@@ -305,11 +305,13 @@ func (c *HTTPClient) Close() error {
 	}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, c.cfg.Endpoint, nil)
 	if err != nil {
+		// 会话终止属 best-effort：构造请求失败无需上报，本地状态照常清理。
 		return nil
 	}
 	c.applyHeaders(req, true, true)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		// 会话终止属 best-effort：网络失败不阻断关闭流程。
 		return nil
 	}
 	defer func() { _ = resp.Body.Close() }()

@@ -135,6 +135,7 @@ func NewMoveTool(cwd string, cfg *MoveToolConfig) *agentcore.Tool { //nolint:goc
 			// Verify source exists.
 			_, err = cfg.Operations.Stat(sourcePath)
 			if err != nil {
+				// 不存在与其他 stat 失败分流：前者是可预期入参问题，后者带原始错误上抛。
 				if os.IsNotExist(err) {
 					return resultErrf("source not found: %s", input.Source)
 				}

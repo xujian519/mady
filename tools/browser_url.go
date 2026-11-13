@@ -69,6 +69,7 @@ func containsSecretInURL(rawURL string) bool {
 func IsPrivateURL(rawURL string) bool {
 	parsed, err := validateURL(rawURL, true)
 	if err != nil {
+		// URL 无法解析→不视为私有地址，交由后续请求阶段报错。
 		return false
 	}
 

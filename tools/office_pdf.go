@@ -314,6 +314,7 @@ func convertWithLibreOffice(ctx context.Context, soffice, input, tmpDir string) 
 	cmd := exec.CommandContext(ctx, soffice, args...) //nolint:gosec // G204: soffice 路径由探测或配置给出，参数分离
 	var stderr bytes.Buffer
 	if err := runEngine(ctx, cmd, &stderr); err != nil {
+		// 引擎失败：上下文已取消说明是超时/中断，否则归因于转换本身并附 stderr。
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("office_to_pdf: LibreOffice 超时或已取消: %w", ctx.Err())
 		}
@@ -347,6 +348,7 @@ func convertWithPandoc(ctx context.Context, pandoc, input, tmpDir, font, cfgFont
 	cmd := exec.CommandContext(ctx, pandoc, args...) //nolint:gosec // G204: pandoc 路径由探测或配置给出，参数分离
 	var stderr bytes.Buffer
 	if err := runEngine(ctx, cmd, &stderr); err != nil {
+		// 引擎失败：上下文已取消说明是超时/中断，否则归因于转换本身并附 stderr。
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("office_to_pdf: pandoc 超时或已取消: %w", ctx.Err())
 		}

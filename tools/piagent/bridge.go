@@ -118,6 +118,7 @@ func mustJSON(params map[string]any) json.RawMessage {
 	}
 	b, err := json.Marshal(params)
 	if err != nil {
+		// 序列化失败→回退空对象，由底层工具按参数错误处理（安全不变量不受影响）。
 		return json.RawMessage("{}")
 	}
 	return b

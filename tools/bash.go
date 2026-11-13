@@ -103,6 +103,7 @@ func (d DefaultBashOperations) Exec(ctx context.Context, command string, cwd str
 	}
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
+			// 进程非零退出→按退出码作为正常结果返回，属预期行为而非执行失败。
 			return exitErr.ExitCode(), nil
 		}
 		return -1, err

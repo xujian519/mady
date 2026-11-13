@@ -113,6 +113,7 @@ func (s *Server) handleEvidenceJudge(w http.ResponseWriter, r *http.Request) {
 		}
 		judgment, err := engine.Judge(span)
 		if err != nil {
+			// 判定失败→任务标记 failed 并记日志，结果由任务状态回传给调用方。
 			task.markFailed(err)
 			slog.Error("evidence judge failed", "task_id", task.ID, "err", err)
 			return
@@ -185,6 +186,7 @@ func (s *Server) handleEvidenceJudgeBatch(w http.ResponseWriter, r *http.Request
 			}
 			judgment, err := engine.Judge(span)
 			if err != nil {
+				// 任一条目判定失败→整体标记 failed 并终止，结果由任务状态回传。
 				task.markFailed(fmt.Errorf("item %d: %w", i, err))
 				return
 			}
