@@ -836,4 +836,4 @@
 - **终审报告**：`docs/code-review-report.md`——指标对比（380→306 吞错、93→1 未注释导出等）、未达成项原因分析、遗留清单、后续专项建议
 - **门禁**：`npx tsc --noEmit`、`npx eslint src/` 均 0 问题；`npm test` 105 用例全绿（91 + 14）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`cd desktop && go build ./... && go test ./...` 回归通过
 - **指标重扫**（102 文件）：未注释导出 **73 → 0**；裸 console 0 / 空 catch 0 / TODO 0 / >400 行文件 5（登记）
-- **提交**：TBD（refactor）、TBD（docs + changelog + 终审报告）
+- **提交**：148ac097（refactor）、d6ebfdcb（docs + changelog + 终审报告）
