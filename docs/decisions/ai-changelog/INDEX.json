@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T16:40:00+08:00",
-  "total": 518,
+  "updated": "2026-11-13T17:05:00+08:00",
+  "total": 519,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "M37-3 内核层吞错专项：补 33 处意图注释（1 处敏感路径跳过）",
+      "file": "2026-11-13.md",
+      "line": 67
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",

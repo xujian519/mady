@@ -134,7 +134,7 @@
 | --- | --- | --- | --- |
 | M37-1 | domains/ 吞错专项 | 61 处 | ✅ 2026-11-13 |
 | M37-2 | a2a/ + a2ui/ + acp/ 吞错专项 | 58 处（协议面，只加注释） | ✅ 2026-11-13 |
-| M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ⬜ |
+| M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ✅ 2026-11-13 |
 | M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ⬜ |
 | M37-5 | cmd/ 吞错专项 | 43 处 | ⬜ |
 | M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ⬜ |
@@ -883,3 +883,18 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./a2a/... ./a2ui/... ./acp/...` **0 issues**；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）；协议面按计划跑全量 `go test -race -count=1 ./...`，唯一失败为 `knowledge/sqlite` 的 `TestSearchLaws`——依赖本机未安装的 `~/.mady/knowledge/laws-full.db`（`-short` 模式跳过并全绿），属预存环境依赖，与本卡无关
 - **指标重扫**（56 文件）：静默吞错 **58 → 0**；裸 fmt 0 / 忽略 err 0 / TODO 0 / 未注释导出 0 / >120 行函数 0
 - **提交**：058cf837（refactor）、d3062231（docs + changelog）
+
+### M37-3（2026-11-13）agentcore/ + doomloop/ + provider/ + prompt/ 吞错专项 ✅
+
+- **审阅范围**：`agentcore/`（31）、`doomloop/`（1）、`provider/`（1）、`prompt/`（1）共 **34 处** 站点、19 个文件
+- **判定结果**：(a) 有意降级 **33 处**；(b) 疑似漏错 **0 处**；**1 处按敏感路径规范跳过**
+  - **错误包装上抛**（10 处）：`agent_run.go` 生命周期/恢复/工具轮次、`agent_tool.go` 子代理、`task_tool.go` 参数与序列化、`plantask|tasklist/filestore.go` 的「不存在 vs IO」区分——均为正常传播，补「上抛原因」说明
+  - **工具失败结果**（8 处）：`worker/tool.go`、`tool_result_offload_read.go`、`prompt/tool.go` 入参或执行失败转 `NewFailureResult` 交 LLM 自纠
+  - **尽力而为的启发式**（7 处）：`filecheckpoint/extension.go` 路径提取、`evidence/receipt.go` 字段取值、`handoff_result.go` 结构探测与序列化、`planmode/readonly.go` 只读判定——解析失败即降级（只读判定 fail-safe 按非只读）
+  - **状态收敛/落盘降级**（8 处）：`filecheckpoint/store.go` 路径校验 fail-closed、`tool_result_budget.go` 卸载目录与落盘失败保持内联（已记 Warn）、`plantask/auto_enter.go` 保存失败放弃自动进入、`doomloop/reminder.go` 去重归一化原样返回、`chatcompat` 错误体原文回显
+  - **敏感路径跳过（1 处）**：`agentcore/permission/rule.go:97` 位于 `check-sensitive-paths.sh` 的 permission 前缀内，按 M02 同口径不改动，登记待人工处理
+- **发现分级**：P0 0 项；P2 1 项边界（`plantask/extension.go` 把读取失败统一映射为 `ErrNoActiveSession`，会掩盖 IO 错误，保守档只加注释不改契约，已登记）
+- **精炼**（无行为变化）：**18 文件 / 33 处注释**（`git diff --stat` 33 insertions、0 deletions，新增行全为 `//`）
+- **门禁**：build / vet 全绿；`golangci-lint run ./agentcore/... ./doomloop/... ./provider/... ./prompt/...` **0 issues**；`go test -race` 四包全绿；`make check-arch doc-check verify-layers debt-check` 通过
+- **指标重扫**（149 文件）：静默吞错 **34 → 1**（仅剩 permission 敏感路径）、被忽略 error 2（历史存量）、裸 fmt / TODO / 未注释导出 / >120 行函数 0
+- **提交**：（待回填）
