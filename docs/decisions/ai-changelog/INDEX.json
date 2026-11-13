@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T09:50:00+08:00",
-  "total": 516,
+  "updated": "2026-11-13T09:51:30+08:00",
+  "total": 517,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "domains",
+      "title": "M37-1 domains/ 吞错专项：补 61 处降级意图注释",
+      "file": "2026-11-13.md",
+      "line": 23
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",

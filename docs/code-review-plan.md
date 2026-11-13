@@ -128,6 +128,24 @@
 | M35 | desktop/（独立子模块 Go 后端） | Wails | ✅ 2026-11-12 |
 | M36 | desktop/（React 前端）+ 终审报告 | docs/code-review-report.md | ✅ 2026-11-13 |
 
+### 阶段 7 — 专项收敛（按终审报告遗留清单）
+
+| 卡 | 模块 | 规模/口径 | 状态 |
+| --- | --- | --- | --- |
+| M37-1 | domains/ 吞错专项 | 61 处 | ✅ 2026-11-13 |
+| M37-2 | a2a/ + a2ui/ + acp/ 吞错专项 | 58 处（协议面，只加注释） | ⬜ |
+| M37-3 | agentcore/ + doomloop/ + provider/ + prompt/ | 34 处 | ⬜ |
+| M37-4 | tools/ + mcp/ + server/ + skill/ | 61 处 | ⬜ |
+| M37-5 | cmd/ 吞错专项 | 43 处 | ⬜ |
+| M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ⬜ |
+| M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ⬜ |
+
+> M37 系列统一口径（保守档）：只允许在错误分支内插入**意图注释**，零行为变更。逐处先判定两类——
+> **(a) 有意降级**（缓存/遥测/可选能力/UI 兜底）→ 补 `// 失败→降级，调用方容忍：<原因>`；
+> **(b) 疑似漏错**（写库/持久化/协议响应等应上抛却返回零值）→ **不改代码**，登记到该卡审阅记录并汇总进报告，另开 fix 卡。
+> 验证：`git diff --stat` deletions 必须为 0；`python3 scripts/scan_go_smells.py <模块目录>` 吞错计数归零；build/vet/lint/test 全绿。
+
+
 ## 六、基线（2026-08-25 实测）
 
 来源：`scripts/scan_go_smells.py`（根模块非测试 Go 文件，默认排除 `_test.go`）。
@@ -837,3 +855,18 @@
 - **门禁**：`npx tsc --noEmit`、`npx eslint src/` 均 0 问题；`npm test` 105 用例全绿（91 + 14）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）；`cd desktop && go build ./... && go test ./...` 回归通过
 - **指标重扫**（102 文件）：未注释导出 **73 → 0**；裸 console 0 / 空 catch 0 / TODO 0 / >400 行文件 5（登记）
 - **提交**：148ac097（refactor）、d6ebfdcb（docs + changelog + 终审报告）
+
+### M37-1（2026-11-13）domains/ 吞错专项 ✅
+
+- **审阅范围**：`domains/` 下 **31 个文件 / 61 处** 静默吞错站点（`scripts/scan_go_smells.py` 口径），覆盖 audit / adversary / assemble / case_ext_focus / case_extension / config / deadline / deliver / doctmpl / fees / figure / filing / lawverify / novelty / orchestration_tools / patent / reasoning / rules / slop / sqlite / teams / triz
+- **判定结果**：(a) 有意降级 **61 处**；(b) 疑似漏错 **0 处**
+  - 主要类型：随包资产读取失败记入 `sync.Once` 一次性错误后续上抛（workcalendar / fees / triz）；工具入参不合法返回 `NewFailureResult` 交 LLM 自纠（doctmpl / slop / orchestration_tools）；解析/序列化失败走占位或宽松口径（audit 加密 fail-open、deliver 清单、figure 属性解析、adversary 模型输出）；「文件不存在 / 无记录」属正常状态（teams 租约与事件、sqlite checkpoint、mailbox）
+  - 已在代码中记 `slog.Error` / `slog.Warn` 的降级（assemble 门禁未启用、patent 扩展创建失败、planner LLM 兜底）补齐说明性注释，日志行为不变
+- **发现分级**：
+  - P0 行为缺陷：0 项
+  - P2 一致性：`patent.go` 的 `BuildProjectAgent` 仍缺导出注释（终审报告已登记的 1 处），非本卡范围，维持登记
+  - P3 风格：`config/project.go`、`figure/generate/render.go`、`filing/compose.go` 三处本就以 `return ... err` 传播，属扫描器启发式近似误判；只补「上抛原因」注释，不改逻辑
+- **精炼**（无行为变化）：**31 文件 / 61 处注释**，`git diff --stat` 为 61 insertions、0 deletions，新增行全部为注释
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./domains/...` **0 issues**；`go test -race -count=1 ./domains/...` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 文件 / 事实源 61 条）
+- **指标重扫**（370 文件）：静默吞错 **61 → 0**；裸 fmt 0 / TODO 3（历史标注）/ 未注释导出 1（`BuildProjectAgent`，已登记）/ >120 行函数 9（登记）
+- **提交**：（待回填）
