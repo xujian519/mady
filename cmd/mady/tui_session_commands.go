@@ -21,6 +21,7 @@ import (
 func (s *tuiSession) handleThinkingCommand(trimmed string) {
 	next, changed, err := parseThinkingCommand(trimmed, s.thinkingConfig())
 	if err != nil {
+		// 参数非法→界面提示后返回，命令不生效。
 		s.app.PrintError(err)
 		return
 	}
@@ -287,6 +288,7 @@ func (s *tuiSession) handleBranchCommand() {
 	}
 	branched, err := s.agentStore.BranchThread(context.Background(), s.currentThreadID, lastEntryID)
 	if err != nil {
+		// 分支失败→界面提示并保持当前线程不变。
 		s.app.PrintError(fmt.Errorf("分支失败: %w", err))
 		return
 	}
@@ -346,6 +348,7 @@ func (s *tuiSession) handleSessionNameCommand(input string) {
 	}
 	// Store session name via the agent store.
 	if err := s.agentStore.SetThreadName(context.Background(), s.currentThreadID, name); err != nil {
+		// 保存失败→界面提示，内存中的会话继续可用。
 		s.app.PrintError(fmt.Errorf("保存会话名失败: %w", err))
 		return
 	}
@@ -390,6 +393,7 @@ func (s *tuiSession) handleExportCommand(trimmed string) {
 	}
 	exportContent := formatExportMarkdown(msgs, s.currentThreadID, s.currentProject)
 	if err := os.WriteFile(exportPath, []byte(exportContent), util.DefaultFilePerm); err != nil {
+		// 写文件失败→界面提示，导出不产生半成品文件。
 		s.app.PrintError(fmt.Errorf("导出失败: %w", err))
 		return
 	}

@@ -107,6 +107,7 @@ func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*age
 		}
 		v, err := strconv.ParseInt(fields[2], 10, 64)
 		if err != nil {
+			// 非法数值→返回参数错误（消息回显入参，命令不生效）。
 			return nil, false, fmt.Errorf("invalid thinking budget %q", fields[2])
 		}
 		next.Budget = v
@@ -117,6 +118,7 @@ func parseThinkingCommand(input string, current *agentcore.ThinkingConfig) (*age
 		}
 		v, err := strconv.ParseBool(fields[2])
 		if err != nil {
+			// 非法布尔值→返回参数错误（消息回显入参，命令不生效）。
 			return nil, false, fmt.Errorf("invalid thinking include value %q", fields[2])
 		}
 		next.IncludeThoughts = v

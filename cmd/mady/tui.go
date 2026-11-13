@@ -383,6 +383,7 @@ func redirectStderrToFile(madyHome string) func() {
 
 	logsDir := filepath.Join(madyHome, "logs")
 	if err := os.MkdirAll(logsDir, util.DefaultDirPerm); err != nil {
+		// 日志目录不可用→放弃 stderr 重定向，返回空清理函数。
 		log.Printf("logs: cannot create %s: %v (stderr not redirected)", logsDir, err)
 		return func() {}
 	}
@@ -390,6 +391,7 @@ func redirectStderrToFile(madyHome string) func() {
 	logPath := filepath.Join(logsDir, "mady.log")
 	logFile, err := util.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, util.DefaultFilePerm) // path is filepath.Join(madyHome, "logs", "mady.log")
 	if err != nil {
+		// 日志文件不可打开→放弃 stderr 重定向，返回空清理函数。
 		log.Printf("logs: cannot open %s: %v (stderr not redirected)", logPath, err)
 		return func() {}
 	}

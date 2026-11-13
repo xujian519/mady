@@ -41,6 +41,7 @@ func (s *tuiSession) handleKnowledgeCommand(query string) {
 
 	results, err := s.fc.KnowledgeBackend.FTSSearch(query, maxKnowledgeResults)
 	if err != nil {
+		// 检索失败→在会话内提示后返回，不中断 REPL。
 		s.app.PrintSystem(fmt.Sprintf("❌ 知识检索失败: %v", err))
 		return
 	}

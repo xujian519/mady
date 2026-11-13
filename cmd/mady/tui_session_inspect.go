@@ -118,6 +118,7 @@ func (s *tuiSession) handleUndoCommand(arg string) {
 	}
 	turn, err := strconv.ParseInt(arg, 10, 64)
 	if err != nil {
+		// 非数字入参→提示格式要求，不执行回退。
 		s.app.PrintSystem(fmt.Sprintf("❌ 无效的轮号 %q：请输入数字（参考 /snapshots 输出）", arg))
 		return
 	}
@@ -126,6 +127,7 @@ func (s *tuiSession) handleUndoCommand(arg string) {
 	store := s.fc.FileCheckpointExt.Store()
 	meta, err := store.RestoreAndTrim(turn)
 	if err != nil {
+		// 回退失败→提示后返回，快照保持原状（内部原子执行，无半完成状态）。
 		s.app.PrintSystem(fmt.Sprintf("❌ 回退失败：%v", err))
 		return
 	}
@@ -164,6 +166,7 @@ func (s *tuiSession) handleMemoryCommand(query string) {
 		// 语义检索模式：SearchAllLayers 已内置混合检索（语义+关键词+RRF）
 		results, err := mgr.SearchAllLayers(s.ctx, query, memory.MemoryScope{}, maxMemoryEntries)
 		if err != nil {
+			// 检索失败→提示后返回，不影响会话继续。
 			s.app.PrintSystem(fmt.Sprintf("❌ 记忆检索失败：%v", err))
 			return
 		}

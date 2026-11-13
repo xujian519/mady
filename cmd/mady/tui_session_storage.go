@@ -71,11 +71,13 @@ func (s *tuiSession) startEventLogger(agent *agentcore.Agent) {
 	}
 	store, err := s.openEventStore()
 	if err != nil {
+		// 事件库不可用→跳过事件日志，会话本身继续工作。
 		log.Printf("[INFO] event store: unavailable (skipping event logging): %v", err)
 		return
 	}
 	el := agentcore.NewEventLogger(store)
 	if err := el.Start(agent.EventBus()); err != nil {
+		// 订阅事件总线失败→记警告后放弃事件日志，不影响主流程。
 		log.Printf("[WARN] event logger: start failed: %v", err)
 		return
 	}
@@ -91,6 +93,7 @@ func (s *tuiSession) recoverPendingApprovals(ctx context.Context) {
 	}
 	pendings, err := s.pendingStore.ListPendingBySession(ctx, s.currentThreadID)
 	if err != nil {
+		// 恢复失败→记警告并跳过，审批缓存按空处理。
 		log.Printf("[WARN] approval: recover pending: %v", err)
 		return
 	}

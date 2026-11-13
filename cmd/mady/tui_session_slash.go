@@ -29,6 +29,7 @@ func (s *tuiSession) runSingleInputSlashWorkflow(
 
 	output, err := runGraph(text)
 	if err != nil {
+		// 图执行失败→界面提示后返回，不中断 REPL。
 		s.app.PrintError(err)
 		return
 	}
@@ -158,6 +159,7 @@ func (s *tuiSession) handleInfringementSlash(ctx slashCtx) {
 
 	compiled, err := patent.BuildInfringementGraph()
 	if err != nil {
+		// 构图失败→界面提示后返回，本次命令不执行。
 		s.app.PrintError(fmt.Errorf("侵权分析引擎初始化失败: %w", err))
 		return
 	}
@@ -167,6 +169,7 @@ func (s *tuiSession) handleInfringementSlash(ctx slashCtx) {
 		patent.InfStateAccusedProduct: productText,
 	})
 	if err != nil {
+		// 执行失败→界面提示后返回，不输出半成品分析。
 		s.app.PrintError(fmt.Errorf("侵权分析执行失败: %w", err))
 		return
 	}

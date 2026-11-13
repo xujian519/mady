@@ -39,6 +39,7 @@ func (s *tuiSession) resolvePlantaskSessionID(arg string) (string, error) {
 	}
 	sess, err := ext.LatestSession(context.Background())
 	if err != nil {
+		// 无活动会话→返回面向用户的下一步指引，原始错误对用户无意义。
 		return "", fmt.Errorf("无活动 HCL 会话（先提交计划：plan_submit）")
 	}
 	return sess.ID, nil
@@ -78,6 +79,7 @@ func (s *tuiSession) handlePlantaskInterrupt(input string) {
 	arg := strings.TrimSpace(strings.TrimPrefix(input, "/interrupt"))
 	sid, err := s.resolvePlantaskSessionID(arg)
 	if err != nil {
+		// 会话解析失败→提示后返回，斜杠命令不中断 REPL。
 		s.app.PrintSystem("⏸️  " + err.Error())
 		return
 	}
@@ -99,11 +101,13 @@ func (s *tuiSession) handlePlantaskResume(input string) {
 	arg := strings.TrimSpace(strings.TrimPrefix(input, "/resume"))
 	sid, err := s.resolvePlantaskSessionID(arg)
 	if err != nil {
+		// 会话解析失败→提示后返回，斜杠命令不中断 REPL。
 		s.app.PrintSystem("▶️  " + err.Error())
 		return
 	}
 	res, err := s.callPlantaskTool("workflow_resume", plantask.WorkflowResumeArgs{SessionID: sid})
 	if err != nil {
+		// 恢复调用失败→提示后返回，由用户重试或查看状态。
 		s.app.PrintSystem("▶️  恢复失败: " + err.Error())
 		return
 	}
@@ -129,6 +133,7 @@ func (s *tuiSession) handlePlantaskFeedback(input string) {
 	}
 	resolved, err := s.resolvePlantaskSessionID(sid)
 	if err != nil {
+		// 会话解析失败→提示后返回，斜杠命令不中断 REPL。
 		s.app.PrintSystem("💬  " + err.Error())
 		return
 	}
@@ -137,6 +142,7 @@ func (s *tuiSession) handlePlantaskFeedback(input string) {
 		Feedback:  text,
 	})
 	if err != nil {
+		// 反馈注入失败→提示后返回，由用户重试。
 		s.app.PrintSystem("💬  反馈注入失败: " + err.Error())
 		return
 	}

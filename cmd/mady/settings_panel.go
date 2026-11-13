@@ -307,6 +307,7 @@ func (s *tuiSession) openModelPicker() {
 			s.app.CloseOverlay(ov)
 		}
 		if err := s.switchModel(item.Value); err != nil {
+			// 切换失败→面板内提示并保持原选择，不中断界面。
 			s.app.PrintError(fmt.Errorf("切换模型失败: %w", err))
 			return
 		}

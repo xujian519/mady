@@ -61,6 +61,7 @@ func runEvidenceAction(action string, input io.Reader, stdout, stderr io.Writer)
 	// 读取上限 + 1 字节探测超限：超限时报明确错误而非静默截断产生误导性的 JSON 解析失败。
 	data, err := io.ReadAll(io.LimitReader(input, evidenceMaxInputBytes+1))
 	if err != nil {
+		// 读输入失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "读取输入失败: %v\n", err)
 		return 1
 	}
@@ -99,6 +100,7 @@ func execTriple(engine *evidence.DefaultEngine, data []byte, stdout, stderr io.W
 		Snippet   string `json:"snippet"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
+		// 参数解析失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
@@ -113,6 +115,7 @@ func execTriple(engine *evidence.DefaultEngine, data []byte, stdout, stderr io.W
 	}
 	judgment, err := engine.Judge(span)
 	if err != nil {
+		// 判定失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "判断失败: %v\n", err)
 		return 1
 	}
@@ -130,6 +133,7 @@ func execBurden(data []byte, stdout, stderr io.Writer) int {
 		Scenario string `json:"scenario"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
+		// 参数解析失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
@@ -159,6 +163,7 @@ func execStandard(data []byte, stdout, stderr io.Writer) int {
 		Gaps            []string `json:"gaps"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
+		// 参数解析失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
@@ -189,6 +194,7 @@ func execConflict(data []byte, stdout, stderr io.Writer) int {
 		} `json:"claims"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
+		// 参数解析失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
@@ -227,6 +233,7 @@ func execTypeSpecific(engine *evidence.DefaultEngine, data []byte, stdout, stder
 		SourceURI string `json:"source_uri"`
 	}
 	if err := json.Unmarshal(data, &args); err != nil {
+		// 参数解析失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "JSON 解析失败: %v\n", err)
 		return 1
 	}
@@ -237,6 +244,7 @@ func execTypeSpecific(engine *evidence.DefaultEngine, data []byte, stdout, stder
 	span := agentcore_evidence.EvidenceSpan{ID: "cli_type_input", SourceURI: args.SourceURI}
 	judgment, err := engine.Judge(span)
 	if err != nil {
+		// 判定失败→写 stderr 并以非零码退出（CLI 契约）。
 		_, _ = fmt.Fprintf(stderr, "判断失败: %v\n", err)
 		return 1
 	}

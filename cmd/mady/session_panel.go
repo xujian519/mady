@@ -35,6 +35,7 @@ func (s *tuiSession) openSessionSelector() {
 	defer cancel()
 	threads, err := s.agentStore.ListThreads(ctx)
 	if err != nil {
+		// 列表读取失败→面板内提示并保持空列表，不阻断主流程。
 		s.app.PrintSystem(fmt.Sprintf("⚠ 读取会话列表失败: %v", err))
 		return
 	}
@@ -106,6 +107,7 @@ func (s *tuiSession) openSessionSelector() {
 		delCtx, delCancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer delCancel()
 		if err := s.agentStore.Delete(delCtx, item.ID); err != nil {
+			// 删除失败→提示后保留列表项，由用户重试。
 			s.app.PrintSystem(fmt.Sprintf("⚠ 删除会话失败: %v", err))
 			return
 		}
@@ -129,6 +131,7 @@ func (s *tuiSession) openSessionSelector() {
 		renameCtx, renameCancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer renameCancel()
 		if err := s.agentStore.SetThreadName(renameCtx, item.ID, newName); err != nil {
+			// 重命名失败→提示后保留原名，由用户重试。
 			s.app.PrintSystem(fmt.Sprintf("⚠ 重命名失败: %v", err))
 			return
 		}

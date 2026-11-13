@@ -82,6 +82,7 @@ func (s *tuiSession) handleProviderCommand(trimmed string) {
 
 	default:
 		if err := s.switchProvider(sub); err != nil {
+			// 切换失败→提示并附排查指引，保持原 Provider。
 			s.app.PrintError(fmt.Errorf("切换 Provider 失败: %w\n请确认 %s 的 API Key 已通过环境变量配置", err, sub))
 			return
 		}
@@ -120,6 +121,7 @@ func (s *tuiSession) handleModelCommand(trimmed string) {
 
 	default:
 		if err := s.switchModel(sub); err != nil {
+			// 切换失败→提示并保持原模型。
 			s.app.PrintError(fmt.Errorf("切换模型失败: %w", err))
 			return
 		}
@@ -131,6 +133,7 @@ func (s *tuiSession) handleModelCommand(trimmed string) {
 
 func (s *tuiSession) handleSettingsReset() {
 	if err := s.store.Reset(); err != nil {
+		// 重置失败→提示后返回，不继续同步内存字段以避免不一致。
 		s.app.PrintError(fmt.Errorf("settings reset failed: %w", err))
 		return
 	}

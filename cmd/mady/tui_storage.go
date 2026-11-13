@@ -71,6 +71,7 @@ func probeSessionDir(envDir, madyHome, cwd string) StorageProbeResult {
 
 	baseDir, explicit, err := resolveBaseSessionDir(envDir, madyHome)
 	if err != nil {
+		// 目录解析失败→标记不可用并降级为仅内存模式（启动不阻断）。
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("resolve sessions dir: %v", err)
 		r.UserMessage = "会话持久化未启用，当前为仅内存模式"
@@ -129,6 +130,7 @@ func probeSettingsStore(homeDir string) StorageProbeResult {
 
 	// 目录不一定存在，先尝试创建。
 	if err := os.MkdirAll(settingsDir, util.DefaultDirPerm); err != nil {
+		// 目录创建失败→标记不可用并提示设置可能丢失（启动不阻断）。
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir settings dir: %v", err)
 		r.UserMessage = "设置持久化未启用，部分设置将在重启后丢失"
@@ -140,6 +142,7 @@ func probeSettingsStore(homeDir string) StorageProbeResult {
 		// 尝试打开以确认权限。
 		f, err := util.OpenFile(settingsPath, os.O_RDWR, util.DefaultFilePerm) // settingsPath is filepath.Join(settingsDir, "settings.json")
 		if err != nil {
+			// 文件不可写→标记不可用并提示设置可能丢失（启动不阻断）。
 			r.Unavailable = true
 			r.Message = fmt.Sprintf("open settings: %v", err)
 			r.UserMessage = "设置文件不可写，部分设置将在重启后丢失"
@@ -177,6 +180,7 @@ func probeApprovalStore(workspaceDir, madyHome string) StorageProbeResult {
 
 	// 确保父目录存在。
 	if err := os.MkdirAll(baseDir, util.DefaultDirPerm); err != nil {
+		// 目录创建失败→标记不可用并提示审批留痕不落盘（启动不阻断）。
 		r.Unavailable = true
 		r.Message = fmt.Sprintf("mkdir approval dir: %v", err)
 		r.UserMessage = "审批留痕未落盘（无法创建审批数据库目录）"
