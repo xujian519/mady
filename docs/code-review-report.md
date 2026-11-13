@@ -21,18 +21,18 @@
 | 指标 | 基线 2026-08-25 | 终态 2026-11-13 | 计划目标 | 结论 |
 | --- | --- | --- | --- | --- |
 | 裸 `fmt.Print*`（库代码调试残留） | 66 | 65 | < 30 | ❌ 未达成（见 §四-1） |
-| 被忽略的 error（`_ = <expr>` 等） | 24 | **8** | ≤ 10 | ✅ 达成（见 §四-2） |
+| 被忽略的 error（`_ = <expr>` 等） | 24 | **10** | ≤ 10 | ✅ 达成（M39 收敛 + M40 口径修正，见 §四-2） |
 | 静默吞错无注释 | 380 | **1** | 显著下降 | ✅ 下降 99.7%（见 §四-3） |
-| 未注释包级导出 | 93 | **1** | ≤ 20 | ✅ 达成 |
+| 未注释包级导出 | 93 | **0** | ≤ 20 | ✅ 达成 |
 | >120 行单函数 | 30 | 34 | 不强制（保守档） | 记录（见 §五） |
-| TODO/FIXME/HACK | 6 | 6 | ≤ 6 | ✅ 达成（均为真实标注，已逐条核实） |
+| TODO/FIXME/HACK | 6 | 3 | ≤ 6 | ✅ 达成（均为 `TODO:` 标准标注，已逐条核实） |
 | 敏感路径 | 18 文件 + 2 前缀 | 零改动 | 零改动 | ✅ 达成 |
 
 子模块与前端（终态）：
 
 | 范围 | 文件数 | 裸 fmt | 忽略 err | 吞错 | TODO | 未注释导出 | >120 行函数 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `tui/`（Go） | 131 | 1（误报，OSC 52 剪贴板序列） | 0 | 0 | 8（全为「TODO panel」面板名） | 0 | 10 |
+| `tui/`（Go） | 131 | 0（OSC 52 序列已标 `scan-ignore`） | 0 | 0 | 0（「TODO panel」为面板名，M40 已排除） | 0 | 10 |
 | `desktop/`（Go 后端） | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `desktop/frontend`（TS/TSX） | 102 | — | — | 0（空 catch 0） | 0 | 73 → **0** | 0（>400 行文件 5 个，见 §五） |
 
@@ -51,7 +51,7 @@
 ## 四、未达成指标的原因分析
 
 1. **裸 fmt 65 处**：全部集中在 `cmd/`（65/65），为 CLI 子命令的正常标准输出（`mady --help`、子命令结果打印），非库代码调试残留。基线注记已说明「cmd 65 处为 subcmd 正常输出」，故此目标自始不可达。**建议**：把 `cmd/**` 在 lint 规则中显式豁免，或制定 CLI 输出规范后关闭该指标。
-2. **忽略 err 8 处**（目标 ≤10，已达成）：M39 将 23 处收敛至 8——`mcp` 12 处 Close 合并为 `closePipes` helper、`tools` 8 处 Wait 改为带 `//nolint:gosec // G104: cleanup-only` 的显式忽略、`domains`/`example`/`agentcore` 各 1～2 处补意图注释。剩余 8 处全部是 `cmd/mady/subcmd/evidence.go` 的 `_, _ = fmt.Fprintf(stderr, ...)`：CLI 错误出口写 stderr 失败时进程必然非零退出，无可补救，保留原样并登记。
+2. **忽略 err 10 处**（目标 ≤10，已达成）：M39 将 23 处收敛至 8（`mcp` 12 处 Close 合并为 `closePipes` helper、`tools` 8 处 Wait 改为带 `//nolint:gosec // G104: cleanup-only` 的显式忽略、`domains`/`example`/`agentcore` 各 1～2 处补意图注释）；M40 修正扫描口径后，`cmd` 的 11 处 stderr 写入（`_, _ = fmt.Fprintf(stderr, ...)`，进程即将非零退出、无可补救）不再计入，同时新识别 10 处真实可疑忽略（见 §五 P2-9），总数 10。旧口径的「8」由 cmd 输出构成，新口径的「10」由真实忽略构成，二者不可直接比较。
 3. **静默吞错 1 处**：M37 六卡按目录分批（domains 61 / 协议面 58 / 内核 34 / tools 61 / cmd 43 / 周边 50）逐处判定并补注 307 处，终态仅剩 `agentcore/permission/rule.go` 1 处——该文件属敏感路径（permission 前缀），按红线未改动，需人工确认后补注或改传播。
 
 ## 五、遗留清单（按建议优先级）
@@ -62,7 +62,7 @@
 
 1. **静默吞错专项收敛**：✅ 已完成（M37-1～M37-6，307 处补注、零行为变更）。剩 1 处待人工处理：
    - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀），按红线未改动；需人工确认该降级是否应改为传播错误。
-2. **忽略 err 收敛**：✅ 已完成（M39，23 → 8，零行为变更）。剩 8 处 `cmd/mady/subcmd/evidence.go` 的 stderr 写入，判定为可接受忽略，无需再动。
+2. **忽略 err 收敛**：✅ 已完成（M39 23 → 8，M40 口径修正后 **10**，零行为变更）。M39 处理的 `mcp`/`tools`/`domains`/`example`/`agentcore` 均归零；M40 修正扫描口径后，`cmd` 的 stderr 写入（11 处）不再计入，新识别 10 处真实可疑忽略（见 P2-9），总数 10 仍达标。
 3. **长函数**（>120 行）44 处：根模块 34、`tui/` 10。其中 `tui/` 已逐条登记（如 `layout/flex.go renderHorizontal`、`theme/palette.go BuildPalette`、`overlay_render.go composeOverlays`、`tui_render.go renderFrame`、`component/review_gate.go renderLocked` 等）。
 4. **大文件拆解候选**（保守档仅记录）：
    - Go：`domains/figure/generate/check.go` 978 行、`example/cli-chat/main.go` 970、`domains/evidence/statutory.go` 848、`domains/figure/generate/dot.go` 822、`domains/figure/generate/tool.go` 773、`evaluate/benchmark/patent_exam_real_a22.go` 619。
@@ -70,10 +70,15 @@
 
 **P2 一致性（低优先）**
 
-5. 未注释导出仅剩 1 处：`domains/patent.go` 的 `BuildProjectAgent`（M37-1 复核确认仍成立）。
+5. 未注释导出：✅ 已清零（M40 补 `domains/patent.go` 的 `BuildProjectAgent` 注释），93 → 0。
 6. **`domains/plantask/extension.go` 错误映射过粗**（M37-3 登记）：把活动会话读取失败统一映射为 `ErrNoActiveSession`，会掩盖 IO/权限错误；改契约属行为变化，保守档仅加注释，另开 fix 卡。
 7. 前端 7 处 `any` 全在 Wails `window.go` / `window.runtime` 桥接，已收敛在 `src/lib/wails.ts` 与 `src/lib/backend.ts`；后续可在 `src/types/wails.d.ts` 用全局声明替代。
-8. `tui/` 的 TODO 8 处与裸 fmt 1 处均为误报（面板名 / OSC 52 剪贴板序列），可在扫描器中加白名单以免误读。
+8. ~~`tui/` TODO 8 处与裸 fmt 1 处为误报~~ ✅ M40 已修扫描器：TODO 仅识别 `TODO:` / `TODO(owner)` 标注形态（`TODO panel` 名词短语不再计入），OSC 52 剪贴板写入用行内 `// scan-ignore: bare_fmt — <原因>` 显式豁免；tui 两项均归零。
+9. **10 处真实可疑忽略**（M40 口径修正后暴露，建议另开 fix 卡逐条判定是否应传播）：
+   - `domains/case_ext_register.go:43`、`domains/case_ext_sync.go:117`、`:195`——`EnsureCaseWorkspace` 失败被丢弃，后续写入可能落在不存在的目录
+   - `memory/extension.go:169`、`:171`——`Deduplicate` / `Remember` 失败被丢弃，长期记忆静默丢失
+   - `server/middleware.go:40`——`rand.Read` 失败被丢弃（应为 `crypto/rand` 失败即拒绝请求）
+   - `tools/browser_agent_browser.go:156`、`tools/browser_lightpanda.go:152`、`domains/claimchart/tool.go:427`、`knowledge/fileindex/reader_spreadsheet.go:59`——`fmt.Sscanf` / `Discard` 最佳努力解析，风险低但缺注释
 
 ## 六、验证方式与门禁记录
 
@@ -108,6 +113,7 @@ git diff --stat                                  # deletions 必须为 0，新�
 
 1. ~~一张「吞错收敛」专项卡（M37）~~ ✅ 已完成：307 处补注，吞错 380 → 1；剩余 1 处敏感路径待人工确认（§五-1）。
 2. ~~一张「宽字符渲染口径」fix 卡（M38）~~ ✅ 已完成：边框字形固定单列 + 测试入口固定口径，`tui/` 全量全绿。
-3. ~~忽略 err 收敛小卡（M39）~~ ✅ 已完成：23 → 8，`mcp` 清理路径合并为 helper、`tools`/`domains`/`example`/`agentcore` 补意图注释，剩余 8 处为 CLI stderr 输出。
+3. ~~忽略 err 收敛小卡（M39）~~ ✅ 已完成：23 → 8（M40 口径修正后 10 处真实忽略）。
+3b. **可疑忽略 fix 卡**（建议下一张）：按 §五 P2-9 逐条判定是否应传播——优先 `server/middleware.go` 的 `rand.Read`、`memory/extension.go` 的 `Remember`/`Deduplicate`、`domains` 三处 `EnsureCaseWorkspace`。
 4. 大文件拆解另立计划（需行为等价重构 + 完整测试护栏），不建议并入保守档。
 5. 把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）。

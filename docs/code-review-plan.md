@@ -140,6 +140,7 @@
 | M37-6 | example/ + bootstrap/ + knowledge/ + pkg/ + session/ + retrieval/ + scripts/ | 50 处 | ✅ 2026-11-13 |
 | M38 | tui/ 宽字符渲染口径 fix（预存失败收口） | 独立 fix 卡 | ✅ 2026-11-13 |
 | M39 | 全仓「被忽略 error」收敛 | 23 处 → 8 | ✅ 2026-11-13 |
+| M40 | P2 收尾：未注释导出补注 + 扫描器口径修正 | 导出 1 → 0；误报清零 | ✅ 2026-11-13 |
 
 > M37 系列统一口径（保守档）：只允许在错误分支内插入**意图注释**，零行为变更。逐处先判定两类——
 > **(a) 有意降级**（缓存/遥测/可选能力/UI 兜底）→ 补 `// 失败→降级，调用方容忍：<原因>`；
@@ -975,5 +976,18 @@
   - **登记保留（8 处）**：`cmd/mady/subcmd/evidence.go` 的 `_, _ = fmt.Fprintf(stderr, ...)` 全部为 CLI 错误出口——stderr 写入失败时进程已注定非零退出，无可补救动作；改写会引入 11 处 `//nolint` 或额外 helper，收益低于噪音，故保留原样并在此登记
 - **发现分级**：P0 0 项；P2 1 项（扫描器以「err 字样」为启发式，`_ = stderr.Close()` / 注释中的 `error` 会被误计，实际存量小于报数）
 - **门禁**：`go build ./... && go vet` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./mcp/ ./domains/ ./tools/` 全绿；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
-- **指标重扫**（1050 文件）：被忽略 error **23 → 8**（达标 ≤10）；吞错 1 / 未注释导出 1 / TODO 6 / 长函数 34 不变
+- **指标重扫**（1050 文件）：被忽略 error **23 → 8**（达标 ≤10；M40 口径修正后为 10 处真实忽略，见 M40）；吞错 1 / 未注释导出 1 / TODO 6 / 长函数 34 不变
 - **提交**：608ef322（refactor）、db142648（docs + changelog）
+
+### M40（2026-11-13）P2 收尾：导出注释 + 扫描器口径 ✅
+
+- **范围**：`domains/patent.go` 未注释导出 1 处；`scripts/scan_go_smells.py` 的三类误报（tui TODO 8、tui 裸 fmt 1、`stderr`/行尾注释含 err 导致的忽略 err 假阳性）
+- **改动**：
+  - `domains/patent.go`：补 `BuildProjectAgent` 中文注释（注入案件上下文 System Prompt + 按案件根目录设权限门控），未注释导出 1 → **0**
+  - 扫描器 TODO 口径：仅识别标准标注形态 `TODO:` / `TODO(owner)` / `TODO!`，`TODO panel` 这类名词短语不再计入（根模块 6 → 3，tui 8 → 0）
+  - 扫描器忽略 err 口径：先剥离行尾注释再判定；err 标识符改为词边界匹配（`stderr` 不再命中）；新增「`_, _ = f(...)` 丢弃全部返回值」识别，同时豁免已知可接受的输出/排空写法（`fmt.Fprint*`、`io.Copy(..., io.Discard`、`*.WriteString(`）
+  - 新增行内豁免 `// scan-ignore: <metric> — <原因>`（只接受 `bare_fmt`/`ignored_err`/`fixme` 三个指标名，未知名称忽略），`tui/chat/clipboard.go` 的 OSC 52 写入据此标注
+- **结果**：忽略 err 8 → **10**（构成变化：cmd 的 11 处 stderr 写入不再计入，新识别 10 处真实可疑忽略）；tui 裸 fmt 1 → 0、TODO 8 → 0；未注释导出 1 → 0；吞错 1、长函数 34 不变
+- **登记（P2-9）**：10 处真实可疑忽略按风险排序——`server/middleware.go` 的 `rand.Read`、`memory/extension.go` 的 `Remember`/`Deduplicate`、`domains` 三处 `EnsureCaseWorkspace`、`tools`/`domains`/`knowledge` 四处最佳努力解析
+- **门禁**：`gofmt` 干净；`golangci-lint run ./...` 0 issues；`make check-arch doc-check verify-layers debt-check` 通过；tui 仅改动注释，`cd tui && go build ./... && go vet ./...` 通过
+- **提交**：1918c605（refactor）、<docs 待回填>（docs + changelog）

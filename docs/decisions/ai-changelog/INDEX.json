@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "updated": "2026-11-13T20:05:00+08:00",
-  "total": 525,
+  "updated": "2026-11-13T21:10:00+08:00",
+  "total": 526,
   "entries": [
+    {
+      "date": "2026-11-13",
+      "type": "refactor",
+      "scope": "review",
+      "title": "修正扫描器口径并补 BuildProjectAgent 注释",
+      "file": "2026-11-13.md",
+      "line": 225
+    },
     {
       "date": "2026-11-13",
       "type": "refactor",
