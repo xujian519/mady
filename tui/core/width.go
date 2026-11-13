@@ -62,6 +62,14 @@ func RuneWidth(r rune) int64 {
 		return 0
 	}
 
+	// Box-drawing（U+2500–U+257F）与块元素（U+2580–U+259F）在 UAX #11 中被
+	// 归为 East Asian Ambiguous，但终端始终按单列渲染——它们是所有 TUI 边框
+	// 的几何基础。若随 CJK 模式按 2 列计算，边框行会比内容行宽一倍（resize
+	// 提示框、Box、分隔线全部错位），因此这里固定为 1 列。
+	if r >= 0x2500 && r <= 0x259F {
+		return 1
+	}
+
 	// Use the standard East Asian Width table. Ambiguous characters get their
 	// width from the active CJK mode; this is the main source of overflow bugs
 	// when the code assumed width 1 but the terminal rendered them as 2.

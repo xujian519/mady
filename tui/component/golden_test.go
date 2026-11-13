@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xujian519/mady/tui/core"
 	"github.com/xujian519/mady/tui/theme"
 )
 
@@ -30,6 +31,10 @@ func TestMain(m *testing.M) {
 	// 颜色开关必须显式固定：CI 的 stdout 不是 TTY，ColorEnabled() 会自动
 	// 关闭颜色，导致同一份 golden 在本地与 CI 产生不同字节。
 	theme.ForceColor(true)
+	// 宽度口径同样必须显式固定：Ambiguous 字符（→、—、…）在 CJK 模式下
+	// 按 2 列计算，会让同一输入在不同 LANG 下产生不同 padding 字节。
+	// golden 基线按非 CJK 口径生成，这里固定为 false 以保证跨环境稳定。
+	core.SetCJKMode(false)
 	os.Exit(m.Run())
 }
 

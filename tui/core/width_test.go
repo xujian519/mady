@@ -143,6 +143,26 @@ func TestVisibleWidthCJKAmbiguous(t *testing.T) {
 	}
 }
 
+// TestBoxDrawingAlwaysSingleWidth 锁定边框字形的宽度口径：U+2500–U+259F
+// 虽属 East Asian Ambiguous，但必须恒为 1 列，否则边框行会比内容行宽一倍。
+func TestBoxDrawingAlwaysSingleWidth(t *testing.T) {
+	old := IsCJKMode()
+	defer SetCJKMode(old)
+
+	for _, cjk := range []bool{false, true} {
+		SetCJKMode(cjk)
+		if got := VisibleWidth("╔═╗"); got != 3 {
+			t.Errorf("cjk=%v: VisibleWidth(\"╔═╗\") = %d, want 3", cjk, got)
+		}
+		if got := VisibleWidth("║中║"); got != 4 {
+			t.Errorf("cjk=%v: VisibleWidth(\"║中║\") = %d, want 4", cjk, got)
+		}
+		if got := VisibleWidth("█▀"); got != 2 {
+			t.Errorf("cjk=%v: VisibleWidth(\"█▀\") = %d, want 2", cjk, got)
+		}
+	}
+}
+
 // TestWrapAnsiCJKBreaksAtPunctuation verifies that CJK-aware wrapping prefers
 // breaking after full-width punctuation instead of splitting a sentence at an
 // arbitrary character boundary.

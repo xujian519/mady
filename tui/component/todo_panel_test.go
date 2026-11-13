@@ -225,7 +225,8 @@ func TestTodoPanelRenderWidths(t *testing.T) {
 	for _, w := range []int64{80, 40, 20} {
 		lines := p.Render(w)
 		for _, ln := range lines {
-			if strings.HasPrefix(ln, "TODO") || strings.HasPrefix(ln, "Pending:") {
+			plain := core.StripAnsi(ln)
+			if strings.HasPrefix(plain, "TODO") || strings.HasPrefix(plain, "Pending:") {
 				continue
 			}
 			if v := core.VisibleWidth(ln); v > w {
