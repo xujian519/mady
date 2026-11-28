@@ -172,6 +172,7 @@
 | M59 | 前端护栏卡 4：`SettingsPanel` 组件测试 | 新增 5 例（分区导航/主题切换/内容切换/版本号/关闭），137 → 142 | ✅ 2026-11-28 |
 | M60 | 前端拆解卡 3：`lib/backend.ts` 569 行 | 按 runtime/conversation/workspace 三域拆分，`backend.ts` 转为 15 行聚合入口 | ✅ 2026-11-28 |
 | M61 | 前端拆解卡 4：`chat/Composer.tsx` 473 行 | 草稿/历史持久化与本地命令拦截迁 `chat/composer/`，主组件 391 行 | ✅ 2026-11-28 |
+| M62 | 前端拆解卡 5：`SettingsPanel.tsx` 448 行 | 外观与关于分区迁 `settings/`（59 + 81），主组件 377 行 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1307,3 +1308,16 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例
 - **发现分级**：P0 0 项；P3 1 项（拆分后 `useSettingsStore`、`exportSession`/`downloadSession`/`generateExportFilename` 在组件中变为未使用，已清理导入）
 - **提交**：a4fcce83（refactor）、49bf1950（docs + changelog）
+
+### M62（2026-11-28）前端拆解卡 5：`SettingsPanel.tsx` ✅
+
+- **范围**：`src/components/SettingsPanel.tsx` 448 行（M59 已补 5 例组件测试作护栏）
+- **拆分口径**：只搬「纯展示的分区 JSX」，状态、请求与校验留在主组件（本卡为前端大文件收尾）
+  - `settings/AppearanceSection.tsx`（59 行）— `themeOptions`（亮色/深色/跟随系统）+ `ThemeGallery`，props `{ themeMode, onThemeChange }`
+  - `settings/AboutSection.tsx`（81 行）— 版本三行（版本/构建/A2UI 协议）+ 检查更新按钮 + 新版本下载引导，props `{ version, updateInfo, checking, onCheckUpdate, onOpenDownload }`
+- **保留在主组件**：`appVersion` 的 health 探测、`provider/model/saving/toast/checking/updateInfo/activeSection` 状态、`handleThemeChange`/`handleCheckUpdate`/`handleOpenDownload`（含 URL 协议白名单）、焦点圈定 effect 与 Toast
+- **等价性验证**：注释与 import 归一后行多重集 398 → 440，差异全部可解释——回调由闭包改 props（`onThemeChange`/`onCheckUpdate`/`onOpenDownload`）、版本号由本地 state 改 `version` prop、新增组件包装与解构行；两分区内 JSX 结构逐字未变
+- **护栏生效**：M59 的 5 例断言（关于区展示 `9.9.9`、点深色触发 `setMode('dark')`、五分区导航、`theme-gallery` testid、关闭按钮）原样通过
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例（共 142）
+- **发现分级**：P0 0 项；P3 1 项（用 python 定位分区末尾 `</div>` 时命中位置偏移，残留旧 JSX 引发 `TS17002`，已加断言并以精确行号删除修正；教训：按标签文本匹配替换 JSX 时须先断言命中数，替换后用 `tsc` 兜底）
+- **提交**：待回填
