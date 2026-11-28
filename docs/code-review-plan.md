@@ -1125,4 +1125,4 @@
 - **指标**：Go 测试文件 632 → 634；非测试源文件与其余指标不变（`metrics-trend` 通过）
 - **发现分级**：P0 0 项；P2 1 项（数据集缺条数约束，本卡补上）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
-- **提交**：待回填
+- **提交**：1d0ad34b（test）、4a940428（docs + changelog）
