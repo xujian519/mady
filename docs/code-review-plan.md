@@ -192,7 +192,7 @@
 | --- | --- | --- | --- |
 | M66 | 协议契约基线（取证卡，不改代码） | 七层契约面盘点：帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / 工具 schema / instrumentation + 测试覆盖矩阵，产出 `docs/code-health/protocol-contract-baseline.md` | ✅ 2026-11-28 |
 | M67-1 | 协议护栏 1：AGUI + A2UI golden fixture | 锁定 AGUI 23 事件名 / BaseEvent 字段 / 消息 ID 规则与 A2UI 版本、四信封、JSONL 帧；契约漂移测试即红（受「单卡 3-5 文件」约束拆分） | ✅ 2026-11-28 |
-| M67-2 | 协议护栏 2：A2A + ACP + server + MCP | 锁定 A2A 方法集/错误码/SSE 帧、ACP 方法集/错误码、server 路由与 SSE 事件名、MCP RPC 名 | ⬜ |
+| M67-2 | 协议护栏 2：A2A + ACP + server + MCP | 锁定 A2A 端点/方法集/错误码/枚举/SSE 帧、ACP 方法集/错误码/通知帧、server 路由表/版本头/schema 常量/SSE 帧、MCP 11 个 RPC 名 + 5 个事件名 | ✅ 2026-11-28 |
 | M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ⬜ |
 | M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ⬜ |
 | M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ⬜ |
@@ -1433,3 +1433,35 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./agui/... ./a2ui/...` **0 issues**；
   `go test -race ./agui ./a2ui` 全绿
 - **提交**：6d5aaf14（test）、93e02219（docs + changelog）
+
+### M67-2（2026-11-28）协议护栏 2：A2A + ACP + server + MCP ✅
+
+- **范围**：把 M66 基线 §3.1 / §3.4 / §3.5 / §3.6 的契约固化为失败即红的测试；**只加测试，零生产代码改动**
+- **交付**：
+  - `a2a/contract_test.go`（6 组）：JSON-RPC 5 码 + A2A 5 码数值；`TaskState` 6 值 / `Role` 2 值 /
+    `PartType` 3 值；信封与 `TaskUpdateEvent` 逐字 JSON；端点行为（Agent Card / health / federation 兜底 /
+    非 POST / 非 JSON Content-Type / 未知方法 `method "x" not found`）；HTTP 8 方法与 WS 8 方法登记表
+    （非法参数下不得返回 -32601）；SSE 帧逐字（`id: n\ndata: …`、`data: …`、`: comment`，**无 `event:` 行**）
+  - `acp/contract_test.go`（4 组）：`initialize` 的 `protocolVersion=1` 与单行帧；11 方法登记表（不得 -32601）；
+    错误码与文案（-32601 `Method not found` / -32602 `Invalid params` / -32001 `Authentication failed` /
+    -32002 `Session not found` / -32000 `Authentication required`）；`session/update` 通知帧形态
+    （无 `id` 字段、`sessionId` + `sessionUpdate` 序列含 `user_message_chunk` / `agent_message_chunk`）
+  - `server/contract_test.go`（4 组）：8 个流 schema 常量（`agent.event.v1` … `chat.done.v1`）；
+    `registerAPIRoute` 双注册与 `X-API-Version: v1` / `X-API-Deprecated: true` + 日期、非 `/api/` 前缀不镜像；
+    路由表 36 条路径（`PATCH` 探测得 405）+ 表外 404；`/api/chat` SSE 帧格式（event+data 两行、data 合法 JSON、
+    末帧 `done` 且含 `chat.done.v1`）
+  - `mcp/contract_test.go`（2 组）：假 HTTP MCP 服务端记录 `method` 字段，驱动全部客户端 API 后比对
+    11 个 RPC 方法集合（含 `notifications/initialized`）；5 个 `mcp_*` 事件名
+- **写法口径**：与 M67-1 一致——golden 值先由实测输出确认再固化；「方法登记表」用非法参数触发业务错误，
+  以「不是 -32601」判定方法存在，避免为断言而 mock 全套业务依赖
+- **与基线的两处偏差（已按实测固化并加注释）**：
+  1. `/federation/agents` 未启用时并非 404，而是落到 `/` 的 JSON-RPC 入口返回 -32600；
+  2. ACP `-32001` 的可观察文案是 `Authentication failed`——`NewServer` 会为 nil `AuthProvider` 注入
+     `noopAuthProvider`（认证必然失败，fail-closed），`Authentication not configured` 分支在 `NewServer`
+     路径上不可达
+- **覆盖增量**：`a2a` / `acp` / `server` / `mcp` 各新增 2–6 组契约测试；四包全量 `go test -race` 全绿
+- **发现分级**：P0 0 项；P3 2 项（上述两处基线描述与实测不一致，已在基线可观察行为层面按实现固化）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./a2a/... ./acp/... ./server/... ./mcp/...`
+  **0 issues**；四包 `go test -race` 全绿；`go test -race ./...` 仅剩预存失败
+  `knowledge/sqlite TestSearchLaws`（缺本机 `~/.mady/knowledge/laws-full.db`），与本卡无关；
+  `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿

@@ -47,7 +47,7 @@
 - **阶段 5 工具/入口（M28–M31）**：tools 三大族（browser / desktop / 内置工具）与 `cmd/mady`；`inputSchema` 零改动。
 - **阶段 6 端/测试/脚本（M32–M36）**：evaluate / example / integration / scripts；`tui/` 基础层与应用层；`desktop/` Go 后端与 React 前端；本报告。
 - **阶段 7 专项收敛（M37-1～M37-6、M38、M39、M40、M41）**：按本报告遗留清单分 6 批处理静默吞错（domains / 协议面 / 内核 / tools / cmd / 周边目录），共 307 处站点，逐处判定「有意降级（补意图注释）」或「疑似漏错（不改代码、登记）」；M38 单独修 `tui/` 宽字符渲染口径，收口 17 个预存失败用例；M39 收敛被忽略 error 23 → 8，M40 修正扫描口径并补导出注释，M41 将 10 处可疑忽略逐条判定清零。
-- **阶段 9 协议面专项（M66–M70）**：阶段 4 对协议面只做了注释治理、未建契约护栏，故单独立项。M66 已完成契约基线取证（`docs/code-health/protocol-contract-baseline.md`：七层帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / instrumentation + 实测覆盖矩阵，`bootstrap` 3.4% 为最弱）；M67 因「单卡 3-5 文件」约束拆为两卡：M67-1（AGUI + A2UI golden fixture）已完成，锁定 23 个事件名、22 类事件 JSON 字段、`msg_`/`thinking_` ID 规则、SSE 帧格式与 A2UI 版本/四信封/JSONL 分帧；M67-2（A2A + ACP + server + MCP）、M68 `agui/converter.go` 内部重构、M69 `mcp` + `bootstrap` 补测、M70 协议文档与变更流程待执行。
+- **阶段 9 协议面专项（M66–M70）**：阶段 4 对协议面只做了注释治理、未建契约护栏，故单独立项。M66 已完成契约基线取证（`docs/code-health/protocol-contract-baseline.md`：七层帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / instrumentation + 实测覆盖矩阵，`bootstrap` 3.4% 为最弱）；M67 因「单卡 3-5 文件」约束拆为两卡：M67-1（AGUI + A2UI golden fixture）锁定 23 个事件名、22 类事件 JSON 字段、`msg_`/`thinking_` ID 规则、SSE 帧格式与 A2UI 版本/四信封/JSONL 分帧；M67-2（A2A + ACP + server + MCP）锁定 A2A 端点与 HTTP/WS 各 8 方法、10 个错误码、6 个任务状态与 SSE 帧（无 `event:` 行），ACP 11 方法、5 个错误码文案与 `session/update` 通知帧，server 8 个流 schema 常量、36 条路由表与 `/api/v1` 版本化响应头，MCP 11 个 RPC 方法与 5 个 `mcp_*` 事件名——两卡均已完成；M68 `agui/converter.go` 内部重构、M69 `mcp` + `bootstrap` 补测、M70 协议文档与变更流程待执行。
 
 ## 四、未达成指标的原因分析
 
