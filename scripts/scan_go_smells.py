@@ -30,6 +30,7 @@
   scripts/scan_go_smells.py [DIRS...]       # 扫描指定目录（默认根模块 go 源文件范围）
   scripts/scan_go_smells.py --all-modules   # 含 tui/ desktop/ 子模块
   scripts/scan_go_smells.py --json          # 输出 JSON（供脚本消费）
+  scripts/scan_go_smells.py --list-long-funcs  # 只列 >120 行函数明细（长函数清单再生源）
 
 退出码：总是 0（计数工具，非门禁）。--fail 时命中裸 fmt 即 exit 1。
 """
@@ -155,6 +156,30 @@ def _parse_scan_ignore(line: str) -> set[str]:
     return names & set(_SCAN_IGNORE_METRICS)
 
 
+def _long_funcs(lines: list[str]) -> list[tuple[int, int, str]]:
+    """返回超长函数明细 [(行数, 起始行号(1-based), 签名)]，阈值 >120 行。
+
+    启发式：花括号深度归零即视为函数结束，行数含 func 声明行本身
+    （闭括号下标 − 起始下标 + 1）。多行签名的函数可能漏判，仅供人工复核。
+    """
+    out: list[tuple[int, int, str]] = []
+    start = None
+    depth = 0
+    for i, raw in enumerate(lines):
+        line = raw.rstrip("\n")
+        if start is None:
+            if _LONG_FUNC_OPEN_RE.match(line):
+                start = i
+                depth = line.count("{") - line.count("}")
+            continue
+        depth += line.count("{") - line.count("}")
+        if depth <= 0:
+            if i - start + 1 > 120:
+                out.append((i - start + 1, start + 1, lines[start].strip()))
+            start = None
+    return out
+
+
 def analyze_file(path: str) -> dict:
     """对单个 Go 源文件做启发式气味统计。"""
     stats = {
@@ -181,8 +206,6 @@ def analyze_file(path: str) -> dict:
     rel_parts = os.path.relpath(path, REPO_ROOT).split(os.sep)
     is_cli_output = is_main_pkg or rel_parts[0] in CLI_OUTPUT_DIRS
 
-    brace_depth = 0
-    func_start = None
     for i, raw in enumerate(lines):
         line = raw.rstrip("\n")
 
@@ -222,17 +245,6 @@ def analyze_file(path: str) -> dict:
                 if not is_propagation:
                     stats["silent_return"] += 1
 
-        # 超长函数（启发式：函数体 >120 行）
-        if _LONG_FUNC_OPEN_RE.match(line):
-            func_start = i
-            brace_depth = line.count("{") - line.count("}")
-        elif func_start is not None:
-            brace_depth += line.count("{") - line.count("}")
-            if brace_depth <= 0:
-                if i - func_start > 120:
-                    stats["long_funcs"] += 1
-                func_start = None
-
         # 未注释导出符号（仅包级导出函数/类型/变量；方法靠接口文档不逐方法要求）
         if (_is_exported_func(line) or re.match(r"^type\s+[A-Z]", line)
                 or re.match(r"^var\s+[A-Z]", line)):
@@ -246,6 +258,8 @@ def analyze_file(path: str) -> dict:
             if not has_comment:
                 stats["uncommented_exported"] += 1
 
+    # 超长函数单独走 _long_funcs（明细与计数同源，避免两套口径漂移）
+    stats["long_funcs"] = len(_long_funcs(lines))
     return stats
 
 
@@ -300,6 +314,31 @@ def render_human(res: dict) -> str:
     return "\n".join(lines)
 
 
+def render_long_funcs(dirs: list[str], include_tests: bool = False) -> str:
+    """输出 >120 行函数明细（docs/code-health/long-function-inventory.md 的再生源）。"""
+    rows = []
+    for d in dirs:
+        if not os.path.isdir(os.path.join(REPO_ROOT, d)):
+            continue
+        for f in _git_tracked_go_files(d, include_tests=include_tests):
+            try:
+                with open(os.path.join(REPO_ROOT, f), encoding="utf-8") as fh:
+                    lines = fh.readlines()
+            except (OSError, UnicodeDecodeError):
+                continue
+            for n, lineno, sig in _long_funcs(lines):
+                rows.append((n, f, lineno, sig))
+    rows.sort(key=lambda r: (-r[0], r[1]))
+    out = [
+        f"超 120 行函数明细（{len(rows)} 处）",
+        "=" * 40,
+        "  行数  位置                    函数签名",
+    ]
+    for n, f, lineno, sig in rows:
+        out.append(f"  {n:>4}  {f}:{lineno:<6} {sig}")
+    return "\n".join(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("dirs", nargs="*", help="要扫描的目录（默认根模块范围）")
@@ -309,11 +348,17 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     ap.add_argument("--fail", action="store_true",
                     help="库代码命中裸 fmt 即 exit 1（门禁模式；CLI 层 cli_fmt 不计）")
+    ap.add_argument("--list-long-funcs", action="store_true",
+                    help="只输出 >120 行函数明细（docs/code-health/long-function-inventory.md 再生源）")
     args = ap.parse_args()
 
     dirs: list[str] = list(args.dirs) if args.dirs else list(DEFAULT_DIRS)
     if args.all_modules:
         dirs += list(SUBMODULES)
+
+    if args.list_long_funcs:
+        print(render_long_funcs(dirs, include_tests=args.include_tests))
+        return 0
 
     res = scan_dirs(dirs, include_tests=args.include_tests)
     if args.json:
