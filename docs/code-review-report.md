@@ -24,7 +24,7 @@
 | 被忽略的 error（`_ = <expr>` 等） | 24 | **0** | ≤ 10 | ✅ 达成（M39 收敛 + M40 口径修正 + M41 逐条判定，见 §四-2） |
 | 静默吞错无注释 | 380 | **0** | 显著下降 | ✅ 下降 100%（见 §四-3） |
 | 未注释包级导出 | 93 | **0** | ≤ 20 | ✅ 达成 |
-| >120 行单函数 | 30 | 34 | 不强制（保守档） | 记录（见 §五） |
+| >120 行单函数 | 30 | **35**（+ `tui/` 10 = 45） | 不强制（保守档） | 逐条登记见 `docs/code-health/long-function-inventory.md`（§五-3） |
 | TODO/FIXME/HACK | 6 | 3 | ≤ 6 | ✅ 达成（均为 `TODO:` 标准标注，已逐条核实） |
 | 敏感路径 | 18 文件 + 2 前缀 | 零改动 | 零改动 | ✅ 达成 |
 
@@ -63,7 +63,7 @@
 1. **静默吞错专项收敛**：✅ 已完成（M37-1～M37-6，307 处补注、零行为变更）。剩 1 处已由 M43 确认：
    - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀）。M43 取证确认为**理论风险、当前不可利用**（生产规则均工具粒度、不解析 args），仅补意图注释说明 fail-open 边界，零行为变更；经用户人工确认后放行。M44 复核补注 `agentcore/plantask/extension.go` 的哨兵映射分支，全仓吞错归 **0**。
 2. **忽略 err 收敛**：✅ 已完成（M39 23 → 8，M40 口径修正后 10，M41 逐条判定后 **0**）。M39 处理的 `mcp`/`tools`/`domains`/`example`/`agentcore` 均归零；M40 识别出的 10 处真实可疑忽略由 M41 收口：6 处补 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免（见 P2-9）。
-3. **长函数**（>120 行）44 处：根模块 34、`tui/` 10。其中 `tui/` 已逐条登记（如 `layout/flex.go renderHorizontal`、`theme/palette.go BuildPalette`、`overlay_render.go composeOverlays`、`tui_render.go renderFrame`、`component/review_gate.go renderLocked` 等）。
+3. **长函数**（>120 行）45 处：根模块 35、`tui/` 10。M45 已逐条登记到 `docs/code-health/long-function-inventory.md`（分级 P1 5 / P2 16 / P3 24，含拆分方向与保留理由；14 处带 `//nolint:gocognit` 显式豁免）。口径修正：扫描器原 `i - func_start > 120` 漏计「恰好 121 行」的函数，M45 改为含声明行计数（34 → 35）。
 4. **大文件拆解候选**（保守档仅记录）：
    - Go：`domains/figure/generate/check.go` 978 行、`example/cli-chat/main.go` 970、`domains/evidence/statutory.go` 848、`domains/figure/generate/dot.go` 822、`domains/figure/generate/tool.go` 773、`evaluate/benchmark/patent_exam_real_a22.go` 619。
    - 前端：`src/components/ProjectTree.tsx` 879 行、`src/components/chat/ChatView.tsx` 822、`src/lib/backend.ts` 569、`src/components/chat/Composer.tsx` 473、`src/components/SettingsPanel.tsx` 448。

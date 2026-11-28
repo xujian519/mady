@@ -52,7 +52,7 @@
 - [ ] 2. **被忽略的 error**（`_ = <expr>`、`if x, _ := ...`）——GO-STANDARDS §0.1#1「所有 error 必须检查」
 - [ ] 3. **静默吞错无意图注释**（`if err != nil { return zero }` 降级但无注释）——补 fail-safe 意图注释；`return err` 传播不算
 - [ ] 4. **裸 `fmt.Print`/`fmt.Println` 调试残留**（库代码应走结构化 `log`/`tracing`/`pkg/i18n`；CLI 输出层——`cmd/` 与 `package main`——按 `docs/cli-output-standards.md` 豁免，扫描器单列 `cli_fmt`）
-- [ ] 5. **嵌套内联 + 超长函数 + 过深嵌套**（单函数 >120 行、高圈复杂度）——只记录待拆建议，不拆
+- [ ] 5. **嵌套内联 + 超长函数 + 过深嵌套**（单函数 >120 行、高圈复杂度）——只记录待拆建议，不拆（登记表：`docs/code-health/long-function-inventory.md`，用 `scan_go_smells.py --list-long-funcs` 再生）
 - [ ] 6. **重复代码可提取、冗余抽象**；禁 `common/`/`utils/`/`base/` 通用包（doc-check 包名守卫）
 - [ ] 7. **命名与注释**（`xxxMu` RWMutex 命名、导出符号必须中文注释、三组 import 排序、错误信息小写开头不加标点）
 - [ ] 8. **项目规范一致性**（分层单向依赖、禁 dot import、首个参数 `ctx context.Context`、goroutine 生命周期）
@@ -155,6 +155,7 @@
 | M42 | agentcore/plantask 错误映射 fix（`ErrSessionNotFound` 区分「未找到」与读取失败） | 1 处契约，行为变化（用户批准） | ✅ 2026-11-28 |
 | M43 | agentcore/permission 敏感路径确认（`rule.go` 解析失败 fail-open 边界） | 1 处，仅补意图注释（零行为） | ✅ 2026-11-28 |
 | M44 | cmd/ CLI 输出规范卡（裸 fmt 指标口径收口） | 新增 `docs/cli-output-standards.md`；扫描器 `cli_fmt` 分类 | ✅ 2026-11-28 |
+| M45 | 长函数拆解清单卡（>120 行登记，不拆代码） | 新增 `docs/code-health/long-function-inventory.md`；扫描器 `--list-long-funcs` + off-by-one 修正 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -169,7 +170,7 @@
 | 被忽略的 error（`_ = <expr>` 等） | 24 | ≤10 | GO-STANDARDS §0.1#1 |
 | 静默吞错无注释（降级无意图注释） | 380 | 显著下降 | 含 `if err := ...` 形式；补 fail-safe 意图注释 |
 | 未注释包级导出（函数/类型/变量） | 93 | ≤20 | tools 74 为主；方法不计 |
-| >120 行单函数 | 30 | 不强制下降（保守档） | 记录待拆建议 |
+| >120 行单函数 | 30 | 不强制下降（保守档） | 记录待拆建议；M45 起逐条登记于 `docs/code-health/long-function-inventory.md`（口径修正后根模块 35 + tui 10） |
 | TODO/FIXME/HACK | 6 | ≤6 | 真实标注：psychological_config.go 3 + psychological 3；逐条核实 |
 | 敏感路径 | 18 文件 + 2 前缀 | 零改动 | 权威源 `check-sensitive-paths.sh` |
 
@@ -1063,3 +1064,17 @@
 - **发现分级**：P0 0 项；P2 1 项（M43 吞错口径与实际计数不符，本卡更正并补注）
 - **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **提交**：39deba2e（refactor）、3b1f5c97（docs + changelog）
+
+### M45（2026-11-28）长函数拆解清单卡：>120 行逐条登记 ✅
+
+- **范围**：终审报告 §五 P1-3（根模块 + `tui/` 的 >120 行函数），保守档**只登记不拆**，拆解另立计划
+- **口径修正**：扫描器原判定 `i - func_start > 120` 未含 `func` 声明行，恰好 121 行的 `domains/claimdrafting/rules.go` `RegisterDefaultRules` 被漏计；改为 `i - func_start + 1 > 120` 后根模块 34 → **35**（`tui/` 10 不变，`desktop/` 0——其 `third_party/` 由扫描器排除）；M44 记录中的 34 为修正前口径
+- **明细再生能力**：新增 `--list-long-funcs`，输出「行数 / 位置 / 签名」；计数与明细共用 `_long_funcs`，避免两套口径漂移
+- **交付**：新增 `docs/code-health/long-function-inventory.md`——45 条逐条登记（位置、函数、行数、拆分方向或保留理由）
+  - 分级：P1 **5**（纯解析/遍历，优先拆）/ P2 **16**（编排装配，需先补特征测试）/ P3 **24**（保留）
+  - P3 构成：14 处 `//nolint:gocognit` 显式豁免、3 处敏感路径（`domains/patent.go`、`disclosure/report.go`、`tools/tools.go`）、1 处协议面（`agui/handler.go`）、其余工具构造器/渲染分发/示例
+  - 附拆解护栏四条：先补测试再拆、行为等价（`refactor` 不混 `fix`/`feat`）、协议面与敏感路径语义不变、拆后跑扫描器确认计数下降
+- **结果**：>120 行函数 35（根）+ 10（`tui/`）；其余指标不变（库代码裸 fmt 0 / `cli_fmt` 179 / 忽略 err 0 / 吞错 0 / TODO 3 / 未注释导出 0）
+- **发现分级**：P0 0 项；P2 1 项（长函数计数 off-by-one，本卡修正）
+- **门禁**：无 Go 代码改动（仅 Python 扫描器与文档）；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **提交**：待回填
