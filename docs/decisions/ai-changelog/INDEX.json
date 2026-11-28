@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-11-28T17:46:57+08:00",
-  "total": 549,
+  "updated": "2026-11-28T17:48:50+08:00",
+  "total": 550,
   "entries": [
     {
       "date": "2026-11-28",
@@ -188,12 +188,12 @@
       "line": 366
     },
     {
-      "date": "2026-11-13",
+      "date": "2026-11-28",
       "type": "refactor",
-      "scope": "review",
-      "title": "收敛全仓被忽略 error（23 → 8）",
-      "file": "2026-11-13.md",
-      "line": 203
+      "scope": "desktop",
+      "title": "M65 续拆 SettingsPanel.tsx：左侧导航独立成 SettingsNav",
+      "file": "2026-11-28.md",
+      "line": 380
     },
     {
       "date": "2026-11-13",
@@ -276,12 +276,12 @@
       "line": 246
     },
     {
-      "date": "2026-11-12",
+      "date": "2026-11-13",
       "type": "refactor",
-      "scope": "tools",
-      "title": "M29 tools/desktop 审阅：补 9 处静默吞错意图注释",
-      "file": "2026-11-12.md",
-      "line": 93
+      "scope": "review",
+      "title": "收敛全仓被忽略 error（23 → 8）",
+      "file": "2026-11-13.md",
+      "line": 203
     },
     {
       "date": "2026-11-12",
@@ -372,12 +372,12 @@
       "line": 74
     },
     {
-      "date": "2026-11-11",
+      "date": "2026-11-12",
       "type": "refactor",
-      "scope": "pkg/ocr",
-      "title": "M21 日卡精炼：pkg/ocr 未注释导出 8 处补齐",
-      "file": "2026-11-11.md",
-      "line": 19
+      "scope": "tools",
+      "title": "M29 tools/desktop 审阅：补 9 处静默吞错意图注释",
+      "file": "2026-11-12.md",
+      "line": 93
     },
     {
       "date": "2026-11-11",
@@ -404,12 +404,12 @@
       "line": 3
     },
     {
-      "date": "2026-11-01",
-      "type": "fix",
-      "scope": "tools/piagent",
-      "title": "适配 sky-valley/pi v1.4 API 变更",
-      "file": "2026-11-01.md",
-      "line": 14
+      "date": "2026-11-11",
+      "type": "refactor",
+      "scope": "pkg/ocr",
+      "title": "M21 日卡精炼：pkg/ocr 未注释导出 8 处补齐",
+      "file": "2026-11-11.md",
+      "line": 19
     },
     {
       "date": "2026-11-01",
@@ -420,12 +420,12 @@
       "line": 3
     },
     {
-      "date": "2026-10-28",
-      "type": "feat",
-      "scope": "domains",
-      "title": "批 A 规则全量接入：96 条确定性规则与规则资产扫描器",
-      "file": "2026-10-28.md",
-      "line": 124
+      "date": "2026-11-01",
+      "type": "fix",
+      "scope": "tools/piagent",
+      "title": "适配 sky-valley/pi v1.4 API 变更",
+      "file": "2026-11-01.md",
+      "line": 14
     },
     {
       "date": "2026-10-28",
@@ -644,12 +644,12 @@
       "line": 107
     },
     {
-      "date": "2026-10-25",
-      "type": "fix",
-      "scope": "tui",
-      "title": "启动时不再输出已切换主题提示，修正空模型标题",
-      "file": "2026-10-25.md",
-      "line": 193
+      "date": "2026-10-28",
+      "type": "feat",
+      "scope": "domains",
+      "title": "批 A 规则全量接入：96 条确定性规则与规则资产扫描器",
+      "file": "2026-10-28.md",
+      "line": 124
     },
     {
       "date": "2026-10-25",
@@ -780,12 +780,12 @@
       "line": 178
     },
     {
-      "date": "2026-10-22",
+      "date": "2026-10-25",
       "type": "fix",
-      "scope": "disclosure",
-      "title": "整体置信度按最低等级聚合",
-      "file": "2026-10-22.md",
-      "line": 3
+      "scope": "tui",
+      "title": "启动时不再输出已切换主题提示，修正空模型标题",
+      "file": "2026-10-25.md",
+      "line": 193
     },
     {
       "date": "2026-10-22",
@@ -812,12 +812,12 @@
       "line": 43
     },
     {
-      "date": "2026-10-21",
+      "date": "2026-10-22",
       "type": "fix",
-      "scope": "retrieval",
-      "title": "分块与上下文截断保证 UTF-8 边界并尊重 MaxChars",
-      "file": "2026-10-21.md",
-      "line": 134
+      "scope": "disclosure",
+      "title": "整体置信度按最低等级聚合",
+      "file": "2026-10-22.md",
+      "line": 3
     },
     {
       "date": "2026-10-21",
@@ -932,12 +932,12 @@
       "line": 120
     },
     {
-      "date": "2026-10-18",
-      "type": "refactor",
-      "scope": "domains",
-      "title": "M14/M15 日卡：domains 写作/模板/根包/存储层行为不变精炼",
-      "file": "2026-10-18.md",
-      "line": 3
+      "date": "2026-10-21",
+      "type": "fix",
+      "scope": "retrieval",
+      "title": "分块与上下文截断保证 UTF-8 边界并尊重 MaxChars",
+      "file": "2026-10-21.md",
+      "line": 134
     },
     {
       "date": "2026-10-18",
@@ -954,6 +954,14 @@
       "title": "DUP-DEL：删除 audit 扩展副本、style 实现归并到 domains/config",
       "file": "2026-10-18.md",
       "line": 55
+    },
+    {
+      "date": "2026-10-18",
+      "type": "refactor",
+      "scope": "domains",
+      "title": "M14/M15 日卡：domains 写作/模板/根包/存储层行为不变精炼",
+      "file": "2026-10-18.md",
+      "line": 3
     },
     {
       "date": "2026-09-14",
@@ -978,14 +986,6 @@
       "title": "M13 日卡：domains/rules + reasoning 审阅精炼（保守档）",
       "file": "2026-09-06.md",
       "line": 3
-    },
-    {
-      "date": "2026-09-01",
-      "type": "refactor",
-      "scope": "workercontract",
-      "title": "M12 日卡：提取 sortedScenarios 助手去重场景列表构建",
-      "file": "2026-09-01.md",
-      "line": 50
     },
     {
       "date": "2026-09-01",
@@ -1028,12 +1028,12 @@
       "line": 31
     },
     {
-      "date": "2026-08-28",
-      "type": "feat",
-      "scope": "invariant",
-      "title": "运行时不变量自检框架与两个 companion（plantask/ipc）",
-      "file": "2026-08-28.md",
-      "line": 140
+      "date": "2026-09-01",
+      "type": "refactor",
+      "scope": "workercontract",
+      "title": "M12 日卡：提取 sortedScenarios 助手去重场景列表构建",
+      "file": "2026-09-01.md",
+      "line": 50
     },
     {
       "date": "2026-08-28",
@@ -1180,12 +1180,12 @@
       "line": 134
     },
     {
-      "date": "2026-08-27",
-      "type": "refactor",
-      "scope": "session",
-      "title": "为静默吞错添加意图注释",
-      "file": "2026-08-27.md",
-      "line": 3
+      "date": "2026-08-28",
+      "type": "feat",
+      "scope": "invariant",
+      "title": "运行时不变量自检框架与两个 companion（plantask/ipc）",
+      "file": "2026-08-28.md",
+      "line": 140
     },
     {
       "date": "2026-08-27",
@@ -1196,11 +1196,11 @@
       "line": 15
     },
     {
-      "date": "2026-08-26",
+      "date": "2026-08-27",
       "type": "refactor",
-      "scope": "agentcore",
-      "title": "日卡 M02：agentcore 子包审阅精炼（concurrency/evidence/filecheckpoint/planmode/tasklist/worker）",
-      "file": "2026-08-26.md",
+      "scope": "session",
+      "title": "为静默吞错添加意图注释",
+      "file": "2026-08-27.md",
       "line": 3
     },
     {
@@ -1228,11 +1228,11 @@
       "line": 55
     },
     {
-      "date": "2026-08-25",
-      "type": "chore",
-      "scope": "docs",
-      "title": "新增每日代码审阅日卡计划与 Go 气味扫描工具",
-      "file": "2026-08-25.md",
+      "date": "2026-08-26",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "日卡 M02：agentcore 子包审阅精炼（concurrency/evidence/filecheckpoint/planmode/tasklist/worker）",
+      "file": "2026-08-26.md",
       "line": 3
     },
     {
@@ -1260,11 +1260,11 @@
       "line": 33
     },
     {
-      "date": "2026-08-24",
-      "type": "docs",
-      "scope": "knowledge",
-      "title": "阶段0：确立 XiaoNuo Agent 作为 Mady 专利知识底座的资产复用策略",
-      "file": "2026-08-24.md",
+      "date": "2026-08-25",
+      "type": "chore",
+      "scope": "docs",
+      "title": "新增每日代码审阅日卡计划与 Go 气味扫描工具",
+      "file": "2026-08-25.md",
       "line": 3
     },
     {
@@ -1420,11 +1420,11 @@
       "line": 295
     },
     {
-      "date": "2026-08-23",
-      "type": "refactor",
-      "scope": "devtools",
-      "title": "开发规范优化：三模块收敛、负控制自证与 fail-closed 硬化",
-      "file": "2026-08-23.md",
+      "date": "2026-08-24",
+      "type": "docs",
+      "scope": "knowledge",
+      "title": "阶段0：确立 XiaoNuo Agent 作为 Mady 专利知识底座的资产复用策略",
+      "file": "2026-08-24.md",
       "line": 3
     },
     {
@@ -1436,12 +1436,12 @@
       "line": 17
     },
     {
-      "date": "2026-08-22",
-      "type": "fix",
-      "scope": "ci,docs",
-      "title": "修复 main CI 门禁并清理失效 dependabot 条目（PR 合并前置）",
-      "file": "2026-08-22.md",
-      "line": 23
+      "date": "2026-08-23",
+      "type": "refactor",
+      "scope": "devtools",
+      "title": "开发规范优化：三模块收敛、负控制自证与 fail-closed 硬化",
+      "file": "2026-08-23.md",
+      "line": 3
     },
     {
       "date": "2026-08-22",
@@ -1476,12 +1476,12 @@
       "line": 7
     },
     {
-      "date": "2026-08-19",
-      "type": "test",
-      "scope": "*",
-      "title": "代码审阅：修复 graph 条件边错误吞没回归 + 简化 compProvider/repetitionState + 补 pipeline 契约测试",
-      "file": "2026-08-19.md",
-      "line": 37
+      "date": "2026-08-22",
+      "type": "fix",
+      "scope": "ci,docs",
+      "title": "修复 main CI 门禁并清理失效 dependabot 条目（PR 合并前置）",
+      "file": "2026-08-22.md",
+      "line": 23
     },
     {
       "date": "2026-08-19",
@@ -1532,12 +1532,12 @@
       "line": 31
     },
     {
-      "date": "2026-08-13",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "自动更新阶段一：真实版本检测 + 手动下载引导（R-P1-6）",
-      "file": "2026-08-13.md",
-      "line": 56
+      "date": "2026-08-19",
+      "type": "test",
+      "scope": "*",
+      "title": "代码审阅：修复 graph 条件边错误吞没回归 + 简化 compProvider/repetitionState + 补 pipeline 契约测试",
+      "file": "2026-08-19.md",
+      "line": 37
     },
     {
       "date": "2026-08-13",
@@ -1628,12 +1628,12 @@
       "line": 50
     },
     {
-      "date": "2026-08-12",
-      "type": "refactor",
-      "scope": "repo",
-      "title": "大文件合理拆分：8 个 \u003e500 行文件按职责拆分",
-      "file": "2026-08-12.md",
-      "line": 31
+      "date": "2026-08-13",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "自动更新阶段一：真实版本检测 + 手动下载引导（R-P1-6）",
+      "file": "2026-08-13.md",
+      "line": 56
     },
     {
       "date": "2026-08-12",
@@ -1732,12 +1732,12 @@
       "line": 25
     },
     {
-      "date": "2026-08-11",
-      "type": "fix",
-      "scope": "domains",
-      "title": "修复 Sati 移植审查问题：泛指词排除位置/端点边界/死字面量",
-      "file": "2026-08-11.md",
-      "line": 93
+      "date": "2026-08-12",
+      "type": "refactor",
+      "scope": "repo",
+      "title": "大文件合理拆分：8 个 \u003e500 行文件按职责拆分",
+      "file": "2026-08-12.md",
+      "line": 31
     },
     {
       "date": "2026-08-11",
@@ -1924,12 +1924,12 @@
       "line": 62
     },
     {
-      "date": "2026-08-09",
-      "type": "refactor",
-      "scope": "agentcore",
-      "title": "code-review 复核修复：LastFinishReason 跨调用残留 + RunFinishedWithSuccess 签名简化 + steering 常量抽取等 5 项",
-      "file": "2026-08-09.md",
-      "line": 39
+      "date": "2026-08-11",
+      "type": "fix",
+      "scope": "domains",
+      "title": "修复 Sati 移植审查问题：泛指词排除位置/端点边界/死字面量",
+      "file": "2026-08-11.md",
+      "line": 93
     },
     {
       "date": "2026-08-09",
@@ -1956,12 +1956,12 @@
       "line": 23
     },
     {
-      "date": "2026-08-08",
-      "type": "feat",
+      "date": "2026-08-09",
+      "type": "refactor",
       "scope": "agentcore",
-      "title": "输出异常结束透传 TUI 可见：AgentEndEvent 带 FinishReason，截断/中断出用户提示",
-      "file": "2026-08-08.md",
-      "line": 13
+      "title": "code-review 复核修复：LastFinishReason 跨调用残留 + RunFinishedWithSuccess 签名简化 + steering 常量抽取等 5 项",
+      "file": "2026-08-09.md",
+      "line": 39
     },
     {
       "date": "2026-08-08",
@@ -1980,11 +1980,11 @@
       "line": 7
     },
     {
-      "date": "2026-08-07",
-      "type": "chore",
-      "scope": "techdebt",
-      "title": "P3 仓库卫生收尾：清除根目录杂散文档与编译二进制",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "feat",
+      "scope": "agentcore",
+      "title": "输出异常结束透传 TUI 可见：AgentEndEvent 带 FinishReason，截断/中断出用户提示",
+      "file": "2026-08-08.md",
       "line": 13
     },
     {
@@ -2004,12 +2004,12 @@
       "line": 7
     },
     {
-      "date": "2026-08-06",
-      "type": "refactor",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
-      "file": "2026-08-06.md",
-      "line": 16
+      "date": "2026-08-07",
+      "type": "chore",
+      "scope": "techdebt",
+      "title": "P3 仓库卫生收尾：清除根目录杂散文档与编译二进制",
+      "file": "2026-08-07.md",
+      "line": 13
     },
     {
       "date": "2026-08-06",
@@ -2020,12 +2020,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-04",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
-      "file": "2026-08-04.md",
-      "line": 146
+      "date": "2026-08-06",
+      "type": "refactor",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复工作流代码审查重构：节点增量返回 + 文件拆分 + 表格紧凑化",
+      "file": "2026-08-06.md",
+      "line": 16
     },
     {
       "date": "2026-08-04",
@@ -2100,12 +2100,12 @@
       "line": 111
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui",
-      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
-      "file": "2026-08-03.md",
-      "line": 9
+      "date": "2026-08-04",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "批次 D：Composer 粘贴图片 + CheckUpdate 中间态文案",
+      "file": "2026-08-04.md",
+      "line": 146
     },
     {
       "date": "2026-08-03",
@@ -2116,12 +2116,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端阶段 2 UI 升级：历史面板回收站 / 上下文环形指示器 / 回合折叠 / Composer 草稿与历史",
-      "file": "2026-08-02.md",
-      "line": 61
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui",
+      "title": "TUI Markdown 列表渲染修复：中文序号规范化与列表对齐",
+      "file": "2026-08-03.md",
+      "line": 9
     },
     {
       "date": "2026-08-02",
@@ -2188,12 +2188,12 @@
       "line": 47
     },
     {
-      "date": "2026-08-01",
-      "type": "refactor",
-      "scope": "bootstrap",
-      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
-      "file": "2026-08-01.md",
-      "line": 3
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端阶段 2 UI 升级：历史面板回收站 / 上下文环形指示器 / 回合折叠 / Composer 草稿与历史",
+      "file": "2026-08-02.md",
+      "line": 61
     },
     {
       "date": "2026-08-01",
@@ -2220,12 +2220,12 @@
       "line": 32
     },
     {
-      "date": "2026-07-31",
-      "type": "fix",
-      "scope": "code-health",
-      "title": "三项代码质量修复——evidence YAML 加载 / approval 去重 / CloudBrowserProvider 清理",
-      "file": "2026-07-31.md",
-      "line": 584
+      "date": "2026-08-01",
+      "type": "refactor",
+      "scope": "bootstrap",
+      "title": "统一 BaseConfig 构造并清理 desktop lint 遗留问题",
+      "file": "2026-08-01.md",
+      "line": 3
     },
     {
       "date": "2026-07-31",
@@ -2628,12 +2628,12 @@
       "line": 95
     },
     {
-      "date": "2026-07-30",
-      "type": "refactor",
-      "scope": "*",
-      "title": "阶段三完成：4个大文件拆分 + TODO清理 + 文档同步",
-      "file": "2026-07-30.md",
-      "line": 48
+      "date": "2026-07-31",
+      "type": "fix",
+      "scope": "code-health",
+      "title": "三项代码质量修复——evidence YAML 加载 / approval 去重 / CloudBrowserProvider 清理",
+      "file": "2026-07-31.md",
+      "line": 584
     },
     {
       "date": "2026-07-30",
@@ -2788,12 +2788,12 @@
       "line": 635
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
-      "scope": "a2ui",
-      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
-      "file": "2026-07-29.md",
-      "line": 95
+      "date": "2026-07-30",
+      "type": "refactor",
+      "scope": "*",
+      "title": "阶段三完成：4个大文件拆分 + TODO清理 + 文档同步",
+      "file": "2026-07-30.md",
+      "line": 48
     },
     {
       "date": "2026-07-29",
@@ -2868,12 +2868,12 @@
       "line": 48
     },
     {
-      "date": "2026-07-28",
-      "type": "fix",
-      "scope": "tui",
-      "title": "修复 TUI 滚动会话记录失效（alt screen 下滚轮被翻译为方向键）",
-      "file": "2026-07-28.md",
-      "line": 389
+      "date": "2026-07-29",
+      "type": "chore",
+      "scope": "a2ui",
+      "title": "桌面端第一波闭环实现（A2UIPromise + ListModels + 工程加固）",
+      "file": "2026-07-29.md",
+      "line": 95
     },
     {
       "date": "2026-07-28",
@@ -2996,12 +2996,12 @@
       "line": 649
     },
     {
-      "date": "2026-07-27",
+      "date": "2026-07-28",
       "type": "fix",
-      "scope": "*",
-      "title": "CI/CD 管道修复 — 4 个失败检查全部通过",
-      "file": "2026-07-27.md",
-      "line": 36
+      "scope": "tui",
+      "title": "修复 TUI 滚动会话记录失效（alt screen 下滚轮被翻译为方向键）",
+      "file": "2026-07-28.md",
+      "line": 389
     },
     {
       "date": "2026-07-27",
@@ -3164,12 +3164,12 @@
       "line": 939
     },
     {
-      "date": "2026-07-26",
-      "type": "chore",
-      "scope": "tui",
-      "title": "TUI 补齐 evidence/filecheckpoint/memory 三个查看入口（P0 缺口）",
-      "file": "2026-07-26.md",
-      "line": 486
+      "date": "2026-07-27",
+      "type": "fix",
+      "scope": "*",
+      "title": "CI/CD 管道修复 — 4 个失败检查全部通过",
+      "file": "2026-07-27.md",
+      "line": 36
     },
     {
       "date": "2026-07-26",
@@ -3236,12 +3236,12 @@
       "line": 546
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
-      "scope": "*",
-      "title": "审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段",
-      "file": "2026-07-25.md",
-      "line": 232
+      "date": "2026-07-26",
+      "type": "chore",
+      "scope": "tui",
+      "title": "TUI 补齐 evidence/filecheckpoint/memory 三个查看入口（P0 缺口）",
+      "file": "2026-07-26.md",
+      "line": 486
     },
     {
       "date": "2026-07-25",
@@ -3348,12 +3348,12 @@
       "line": 203
     },
     {
-      "date": "2026-07-24",
-      "type": "fix",
+      "date": "2026-07-25",
+      "type": "docs",
       "scope": "*",
-      "title": "斜杠命令系统交互改进（P0三阶段 + code-review修复）",
-      "file": "2026-07-24.md",
-      "line": 701
+      "title": "审阅决策 — AI_CHANGELOG 格式修订为四段式 + 强制三字段",
+      "file": "2026-07-25.md",
+      "line": 232
     },
     {
       "date": "2026-07-24",
@@ -3508,12 +3508,12 @@
       "line": 308
     },
     {
-      "date": "2026-07-23",
+      "date": "2026-07-24",
       "type": "fix",
       "scope": "*",
-      "title": "Agent 运行时审阅修复 — 全面修复 56 项发现",
-      "file": "2026-07-23.md",
-      "line": 51
+      "title": "斜杠命令系统交互改进（P0三阶段 + code-review修复）",
+      "file": "2026-07-24.md",
+      "line": 701
     },
     {
       "date": "2026-07-23",
@@ -3660,12 +3660,12 @@
       "line": 364
     },
     {
-      "date": "2026-07-22",
-      "type": "chore",
-      "scope": "knowledge",
-      "title": "知识库工具注入修正 — search_knowledge/search_laws 归属 Patent/Legal Agent",
-      "file": "2026-07-22.md",
-      "line": 285
+      "date": "2026-07-23",
+      "type": "fix",
+      "scope": "*",
+      "title": "Agent 运行时审阅修复 — 全面修复 56 项发现",
+      "file": "2026-07-23.md",
+      "line": 51
     },
     {
       "date": "2026-07-22",
@@ -3724,12 +3724,12 @@
       "line": 227
     },
     {
-      "date": "2026-07-21",
+      "date": "2026-07-22",
       "type": "chore",
-      "scope": "tui",
-      "title": "TUI 欢迎页面 — PrintWelcome 结构化启动信息",
-      "file": "2026-07-21.md",
-      "line": 625
+      "scope": "knowledge",
+      "title": "知识库工具注入修正 — search_knowledge/search_laws 归属 Patent/Legal Agent",
+      "file": "2026-07-22.md",
+      "line": 285
     },
     {
       "date": "2026-07-21",
@@ -3908,12 +3908,12 @@
       "line": 773
     },
     {
-      "date": "2026-07-20",
-      "type": "feat",
-      "scope": "disclosure",
-      "title": "新增 disclosure happy-path smoke test（analyze -\u003e review -\u003e export）",
-      "file": "2026-07-20.md",
-      "line": 562
+      "date": "2026-07-21",
+      "type": "chore",
+      "scope": "tui",
+      "title": "TUI 欢迎页面 — PrintWelcome 结构化启动信息",
+      "file": "2026-07-21.md",
+      "line": 625
     },
     {
       "date": "2026-07-20",
@@ -4140,12 +4140,12 @@
       "line": 210
     },
     {
-      "date": "2026-07-19",
-      "type": "docs",
-      "scope": "a2ui",
-      "title": "A2UI 模块审阅与完备化",
-      "file": "2026-07-19.md",
-      "line": 41
+      "date": "2026-07-20",
+      "type": "feat",
+      "scope": "disclosure",
+      "title": "新增 disclosure happy-path smoke test（analyze -\u003e review -\u003e export）",
+      "file": "2026-07-20.md",
+      "line": 562
     },
     {
       "date": "2026-07-19",
@@ -4188,12 +4188,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-18",
-      "type": "fix",
-      "scope": "*",
-      "title": "Code Review 第二轮修复（5 项 P0/P1 + 1 项测试质量）",
-      "file": "2026-07-18.md",
-      "line": 437
+      "date": "2026-07-19",
+      "type": "docs",
+      "scope": "a2ui",
+      "title": "A2UI 模块审阅与完备化",
+      "file": "2026-07-19.md",
+      "line": 41
     },
     {
       "date": "2026-07-18",
@@ -4394,6 +4394,14 @@
       "title": "P2-5 大文件拆分（4 个 \u003e1000 行文件 → 20 个聚焦文件）",
       "file": "2026-07-18.md",
       "line": 488
+    },
+    {
+      "date": "2026-07-18",
+      "type": "fix",
+      "scope": "*",
+      "title": "Code Review 第二轮修复（5 项 P0/P1 + 1 项测试质量）",
+      "file": "2026-07-18.md",
+      "line": 437
     }
   ]
 }

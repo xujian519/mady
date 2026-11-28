@@ -175,6 +175,7 @@
 | M62 | 前端拆解卡 5：`SettingsPanel.tsx` 448 行 | 外观与关于分区迁 `settings/`（59 + 81），主组件 377 行 | ✅ 2026-11-28 |
 | M63 | 依赖升级卡：Go 根模块 6 项 + 前端 26 项 | 同主版本 patch/minor；chromedp/onnxruntime 暂缓；补 dependabot npm 覆盖 | ✅ 2026-11-28 |
 | M64 | 前端拆解卡 6：`SettingsPanel.tsx` 377 行续拆 | AI 服务分区迁 `settings/AIServiceSection`（97），主组件 330 行 | ✅ 2026-11-28 |
+| M65 | 前端拆解卡 7：`SettingsPanel.tsx` 330 行续拆 | 左侧导航迁 `settings/SettingsNav`（51，含分区 ID 类型），主组件 304 行 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1354,3 +1355,15 @@
 - **门禁**：`pnpm typecheck` 0 error；`pnpm lint` 0 issue；`pnpm test` 91 + 51 全绿；`pnpm build` 成功
 - **发现分级**：P0 0 项；P3 0 项（`Cpu` 图标随分区迁出后成为主组件未使用导入，已在同一次改动内移除）
 - **提交**：931e60f1（refactor）、37efe65c（docs + changelog）
+
+### M65（2026-11-28）前端拆解卡 7：`SettingsPanel.tsx` 续拆导航 ✅
+
+- **范围**：`src/components/SettingsPanel.tsx` 330 行（M64 后续拆的收尾项）
+- **拆分口径**：把左侧导航（分区清单 + 激活态样式 + `aria-current`）迁为纯展示组件，同时把分区 ID 类型一并移入，避免主组件与导航各存一份联合类型
+  - `settings/SettingsNav.tsx`（51 行）— 导出 `type SettingsSectionId` 与 `SECTIONS`（外观/AI 服务/模型与推理/MCP 服务器/关于），props `{ activeSection, onSelect }`
+- **留在主组件**：`activeSection` 状态、分区内容分发、窗口焦点圈定与 Toast
+- **等价性验证**：注释与 import 归一后行多重集 264 → 273，差异全部可解释——`type SettingsSectionId` 与 `sections` 数组整体迁出（`sections` → `SECTIONS`、`onClick={() => setActiveSection(sec.id)}` → `onClick={() => onSelect(sec.id)}`）、新增 `<SettingsNav>` 引用与 props 接口声明；导航按钮的类名与结构逐字未变
+- **连带清理**：主组件不再使用的 `Sun`/`Server`/`Brain`/`Info`/`Plug` 五个图标导入已移除（仅保留 `X`、`Check`、`AlertCircle`），`setActiveSection` 直接作为 `onSelect` 传入
+- **门禁**：`pnpm typecheck` 0 error；`pnpm lint` 0 issue；`pnpm test` 91 + 51 全绿（M59 的五分区导航断言原样通过）；`pnpm build` 成功
+- **发现分级**：P0 0 项；P3 0 项
+- **提交**：待回填
