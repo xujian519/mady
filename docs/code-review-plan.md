@@ -1353,4 +1353,4 @@
 - **护栏**：M59 的 5 例 SettingsPanel 组件测试原样通过（含「关于区 9.9.9」「点深色触发 setMode」）
 - **门禁**：`pnpm typecheck` 0 error；`pnpm lint` 0 issue；`pnpm test` 91 + 51 全绿；`pnpm build` 成功
 - **发现分级**：P0 0 项；P3 0 项（`Cpu` 图标随分区迁出后成为主组件未使用导入，已在同一次改动内移除）
-- **提交**：待回填
+- **提交**：931e60f1（refactor）、37efe65c（docs + changelog）
