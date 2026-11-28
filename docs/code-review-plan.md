@@ -148,6 +148,12 @@
 > **(b) 疑似漏错**（写库/持久化/协议响应等应上抛却返回零值）→ **不改代码**，登记到该卡审阅记录并汇总进报告，另开 fix 卡。
 > 验证：`git diff --stat` deletions 必须为 0；`python3 scripts/scan_go_smells.py <模块目录>` 吞错计数归零；build/vet/lint/test 全绿。
 
+### 阶段 8 — 遗留闭环（按终审报告 P2 清单）
+
+| 卡 | 模块 | 规模/口径 | 状态 |
+| --- | --- | --- | --- |
+| M42 | agentcore/plantask 错误映射 fix（`ErrSessionNotFound` 区分「未找到」与读取失败） | 1 处契约，行为变化（用户批准） | ✅ 2026-11-28 |
+
 
 ## 六、基线（2026-08-25 实测）
 
@@ -1011,3 +1017,17 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race -count=1 ./server/... ./memory/... ./domains/... ./tools/... ./knowledge/...` 全绿（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db` 符号链接目标）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（1050 文件）：被忽略 error **10 → 0**；吞错 1、未注释导出 0、TODO 3、裸 fmt 65、长函数 34 不变
 - **提交**：c4ae1ce5（fix）、ca756929（docs + changelog）
+
+### M42（2026-11-28）plantask 错误映射 fix：区分「未找到」与读取失败 ✅
+
+- **范围**：终审报告 §五 P2-6 遗留项——`agentcore/plantask/extension.go` 的 `loadSession` 把 `Store.Load` 的所有错误统一映射为 `ErrNoActiveSession`，掩盖 IO/权限/解析失败（报告原记路径 `domains/plantask/` 有误，实际位于 `agentcore/plantask/`）
+- **根因**：`Store.Load` 对「不存在」与「读取失败」均返回普通 `fmt.Errorf`，无哨兵可供上层判定，`loadSession` 只能一律降级
+- **修复**：
+  - `agentcore/plantask/session.go` 新增哨兵 `ErrSessionNotFound`
+  - `MemoryStore.Load` / `FileStore.Load` 在「不存在」时以 `%w` 包装 `ErrSessionNotFound`；FileStore 的其余 IO 错误保持带原因上抛，二者不混淆
+  - `loadSession` 改为：`id == ""` 或 `errors.Is(err, ErrSessionNotFound)` → `ErrNoActiveSession`；其余错误原样上抛
+- **行为变化**（用户批准）：无效会话 ID 仍返回 `ErrNoActiveSession`（对外语义不变）；真实 IO/权限/解析错误不再被吞成「无活动会话」，工具调用方与用户可见真实原因
+- **测试**：新增 `TestLoadSession_IOErrorPropagates`（注入 IO 错误，断言原样上抛且非 `ErrNoActiveSession`）；既有 `TestNoActiveSession` 仍通过
+- **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过，唯一失败为预存 `knowledge/sqlite TestSearchLaws`（缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **指标重扫**（1050 文件）：被忽略 error 0、吞错 1（敏感路径待人工）、未注释导出 0、TODO 3、裸 fmt 65、长函数 34，均无反弹
+- **提交**：`<待回填>`

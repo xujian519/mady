@@ -71,7 +71,7 @@
 **P2 一致性（低优先）**
 
 5. 未注释导出：✅ 已清零（M40 补 `domains/patent.go` 的 `BuildProjectAgent` 注释），93 → 0。
-6. **`domains/plantask/extension.go` 错误映射过粗**（M37-3 登记）：把活动会话读取失败统一映射为 `ErrNoActiveSession`，会掩盖 IO/权限错误；改契约属行为变化，保守档仅加注释，另开 fix 卡。
+6. ~~**`domains/plantask/extension.go` 错误映射过粗**（M37-3 登记）~~ ✅ M42 已修复：新增 `ErrSessionNotFound` 哨兵，仅「未找到」映射为 `ErrNoActiveSession`，IO/权限/解析错误原样上抛（路径原记 `domains/` 有误，实际位于 `agentcore/plantask/`）。
 7. 前端 7 处 `any` 全在 Wails `window.go` / `window.runtime` 桥接，已收敛在 `src/lib/wails.ts` 与 `src/lib/backend.ts`；后续可在 `src/types/wails.d.ts` 用全局声明替代。
 8. ~~`tui/` TODO 8 处与裸 fmt 1 处为误报~~ ✅ M40 已修扫描器：TODO 仅识别 `TODO:` / `TODO(owner)` 标注形态（`TODO panel` 名词短语不再计入），OSC 52 剪贴板写入用行内 `// scan-ignore: bare_fmt — <原因>` 显式豁免；tui 两项均归零。
 9. ~~**10 处真实可疑忽略**（M40 口径修正后暴露，建议另开 fix 卡逐条判定是否应传播）~~ ✅ M41 已逐条判定并清零：
