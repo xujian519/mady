@@ -1535,3 +1535,4 @@
 - **发现分级**：P0 0 项；P3 1 项（M67-2 记录的路由条数笔误，已修正）
 - **门禁**：纯文档卡；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿，
   `go build ./... && go vet ./...` 全绿（确认未误改代码）
+- **提交**：0481df89（docs）
