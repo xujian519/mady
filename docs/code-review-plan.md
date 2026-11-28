@@ -1554,6 +1554,7 @@
   CJK 截断用例并入本文件后删除该文件与其 `.txt` 快照
 - **门禁**：`go vet ./...`（tui 模块）全绿；`golangci-lint run ./tui/component/...` **0 issues**；
   `go test ./component` 与 `go test -race ./component` 全绿；`make doc-check` 通过（Go 文件数不变）
+- **提交**：72c09fda（test）、3bad3891（docs + changelog）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
