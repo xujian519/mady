@@ -1573,6 +1573,7 @@
 - **门禁**：`go test -race ./component ./chat` 全绿；`golangci-lint run ./component/... ./chat/...` **0 issues**；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（AGENTS.md / CLAUDE.md 计数同步
   1883 = 1236 + 647）
+- **提交**：a3dd63cc（refactor）、9e40f80b（docs + changelog）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
