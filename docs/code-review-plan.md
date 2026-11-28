@@ -1077,4 +1077,4 @@
 - **结果**：>120 行函数 35（根）+ 10（`tui/`）；其余指标不变（库代码裸 fmt 0 / `cli_fmt` 179 / 忽略 err 0 / 吞错 0 / TODO 3 / 未注释导出 0）
 - **发现分级**：P0 0 项；P2 1 项（长函数计数 off-by-one，本卡修正）
 - **门禁**：无 Go 代码改动（仅 Python 扫描器与文档）；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
-- **提交**：待回填
+- **提交**：587c1762（refactor）、dd465ab6（docs + changelog）
