@@ -1,0 +1,35 @@
+### user/cjk-wrap
+> 请核对权利要求 1
+  中的必要技术特征是否与说明书一致，
+  并给出修改建议。
+
+### assistant/markdown-table
+结论如下：
+
++--------+------------+
+| 项目   | 判断       |
++--------+------------+
+| 新颖性 | 具备       |
+| 创造性 | 待补充证据 |
++--------+------------+
+
+### assistant/thinking-streaming
+…
+
+### assistant/streaming-pending
+正在核对证据▊
+
+### tool/consecutive-collapsed
+[1] → grep 匹配到 12 处
+[2] → read 读取完成
+
+### assistant/code-block-narrow
+示例：
+
+  go
+  func main() {
+println("证据采信") }
+
+### error/long-cjk
+工具调用失败：检索接口返回
+429，请稍后重试或改用号单检索。
