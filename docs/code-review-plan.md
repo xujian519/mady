@@ -169,6 +169,7 @@
 | M56 | 前端拆解卡 2：`ChatView.tsx` 822 行 | 虚拟列表纯函数迁 `chat/transcript.ts`，17 例测试随之迁移 | ✅ 2026-11-28 |
 | M57 | 前端护栏卡 2：`ChatView` 组件级测试 | 新增 4 例（空态/消息/流式/错误），前端用例 127 → 131 | ✅ 2026-11-28 |
 | M58 | 前端护栏卡 3：`Composer` 组件测试 | 新增 6 例（空输入/发送/Shift+Enter/运行中/本地命令/空白），前端用例 131 → 137 | ✅ 2026-11-28 |
+| M59 | 前端护栏卡 4：`SettingsPanel` 组件测试 | 新增 5 例（分区导航/主题切换/内容切换/版本号/关闭），137 → 142 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1270,3 +1271,12 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 46 例（40 + 6）
 - **发现分级**：P0 0 项；P2 0 项
 - **提交**：f04929b2（test）、f8f71197（docs + changelog）
+
+### M59（2026-11-28）前端护栏卡 4：`SettingsPanel` 组件测试 ✅
+
+- **取证**：`src/components/SettingsPanel.tsx` 449 行，此前无测试；分区导航、主题切换、版本展示均无回归网
+- **方法**：`useTheme` 用 `vi.hoisted` 提供 `setMode` spy（避免真实主题副作用）；`McpServersSettings`/`ModelSettings`/`ThemeGallery` 替身化；`@/lib/backend` 的 `health`/`getAISettings` 等替身化
+- **交付**：`src/components/__tests__/SettingsPanel.test.tsx`（5 例）——对话框与五个分区导航渲染（默认停外观区）；点击「深色」写回 `themeMode` 并调用 `setMode('dark')`；点击分区切换内容（MCP/模型）；关于区展示 `health().version`；关闭按钮触发 `onClose`
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例（46 + 5）
+- **发现分级**：P0 0 项；P2 0 项
+- **提交**：待回填
