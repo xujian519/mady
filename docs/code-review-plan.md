@@ -1515,3 +1515,4 @@
   `go test -race ./bootstrap/... ./mcp/` 全绿；`go test -race ./...` 仅剩预存失败
   `knowledge/sqlite TestSearchLaws`；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
   （同时同步 AGENTS.md 文件计数：1876 = 1236 非测试 + 644 测试）
+- **提交**：0ae9d778（4 个测试文件 + docs + changelog，单提交）
