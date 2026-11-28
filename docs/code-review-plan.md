@@ -170,6 +170,7 @@
 | M57 | 前端护栏卡 2：`ChatView` 组件级测试 | 新增 4 例（空态/消息/流式/错误），前端用例 127 → 131 | ✅ 2026-11-28 |
 | M58 | 前端护栏卡 3：`Composer` 组件测试 | 新增 6 例（空输入/发送/Shift+Enter/运行中/本地命令/空白），前端用例 131 → 137 | ✅ 2026-11-28 |
 | M59 | 前端护栏卡 4：`SettingsPanel` 组件测试 | 新增 5 例（分区导航/主题切换/内容切换/版本号/关闭），137 → 142 | ✅ 2026-11-28 |
+| M60 | 前端拆解卡 3：`lib/backend.ts` 569 行 | 按 runtime/conversation/workspace 三域拆分，`backend.ts` 转为 15 行聚合入口 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1280,3 +1281,15 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例（46 + 5）
 - **发现分级**：P0 0 项；P2 0 项
 - **提交**：035941ae（test）、5ab0afb8（docs + changelog）
+
+### M60（2026-11-28）前端拆解卡 3：`lib/backend.ts` ✅
+
+- **范围**：`src/lib/backend.ts` 569 行、66 个导出声明（Wails 绑定封装）
+- **拆分口径**：按调用域切三块，`backend.ts` 退化为纯 re-export 聚合入口——所有既有 `@/lib/backend` 导入与命名保持不变
+  - `backend/runtime.ts` 133 行 — `declare global`、`isWailsHost`/`resolveBinding`（保持私有）、`callBinding`（唯一新增导出，供另两块复用）、健康检查/版本/AI 设置/模型列表
+  - `backend/conversation.ts` 247 行 — 聊天、会话增删改查与回收站、标签页与绑定、粘贴图片、记忆
+  - `backend/workspace.ts` 202 行 — 文件树读写、技能、MCP 服务、文档模板、知识库状态与模型设置、项目
+- **导出面核对**：拆分前 66 个导出声明，拆分后 66 个（28 + 29 + 12 减去被收窄私有的 2 个 helper，加上必须导出的 `callBinding`）；行多重集 361 = 361，唯一差异是 `callBinding` 由私有改为导出
+- **门禁**：`npx tsc --noEmit` 0 error（消费方零改动即编译通过，证明导出面未破）；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例
+- **发现分级**：P0 0 项；P3 1 项（初版脚本把 `isWailsHost`/`resolveBinding` 一并导出，已收窄为私有，避免无谓扩大 API 面）
+- **提交**：待回填
