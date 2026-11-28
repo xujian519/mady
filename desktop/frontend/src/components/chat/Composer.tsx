@@ -14,12 +14,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useChatStore, initialState } from '@/stores/chat'
-import { useSettingsStore } from '@/stores/settings'
 import { Send, Sparkles } from 'lucide-react'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
-import { exportSession, downloadSession, generateExportFilename } from '@/lib/sessionExport'
 import { useTheme } from '@/theme/tokens'
 import { savePastedImage } from '@/lib/backend'
+import { draftKey, loadSendHistory, saveSendHistory } from './composer/draftStore'
+import { tryLocalCommand } from './composer/localCommands'
 
 // ── 常量 ──────────────────────────────────────────
 
@@ -31,38 +31,6 @@ const LONG_PASTE_LINES = 20
 const MAX_INPUT_HEIGHT = 200
 /** 发送历史最大条数（阶段 2.5，↑↓ 导航） */
 const MAX_SEND_HISTORY = 50
-
-// ── 会话草稿 / 发送历史（阶段 2.5） ───────────────
-
-/** 草稿 localStorage key（按会话隔离）。 */
-function draftKey(threadId: string | null): string {
-  return `mady-composer-draft-${threadId || 'default'}`
-}
-
-/** 发送历史 localStorage key（按会话隔离）。 */
-function historyKey(threadId: string | null): string {
-  return `mady-composer-history-${threadId || 'default'}`
-}
-
-/** 读取发送历史（旧 → 新，Index 0 为最早）。 */
-function loadSendHistory(threadId: string | null): string[] {
-  try {
-    const raw = localStorage.getItem(historyKey(threadId))
-    const parsed = raw ? (JSON.parse(raw) as unknown) : []
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
-  } catch {
-    return []
-  }
-}
-
-/** 写入发送历史（新消息在前，去重相邻，上限 MAX_SEND_HISTORY）。 */
-function saveSendHistory(threadId: string | null, history: string[]): void {
-  try {
-    localStorage.setItem(historyKey(threadId), JSON.stringify(history.slice(0, MAX_SEND_HISTORY)))
-  } catch {
-    // localStorage 不可用（隐私模式等）时静默
-  }
-}
 
 // ── 组件 ──────────────────────────────────────────
 
@@ -203,56 +171,6 @@ export const Composer: React.FC = () => {
     setShowCommands(false)
   }, [])
 
-  // ── 本地命令检测 ────────────────────────────────
-
-  /** 检测并执行本地 UI 命令。返回 true 表示已处理。 */
-  const tryLocalCommand = (input: string): boolean => {
-    // /theme <light|dark|system|packName>
-    const themeMatch = input.match(/^\/theme\s+(.+)$/)
-    if (themeMatch) {
-      const name = themeMatch[1].toLowerCase()
-      // M-16：light/dark/system 是明暗模式切换（SlashCommandMenu usage 语义），
-      // 其余值按主题包名匹配（professional/focus-blue/paper-warm/slate）。
-      if (name === 'light' || name === 'dark' || name === 'system') {
-        setMode(name)
-        return true
-      }
-      // 通过 CustomEvent 通信给 App 层（SettingsPanel 监听）
-      window.dispatchEvent(new CustomEvent('mady:set-theme-pack', { detail: name }))
-      return true
-    }
-    // /layout <mode>
-    const layoutMatch = input.match(/^\/layout\s+(.+)$/)
-    if (layoutMatch) {
-      const mode = layoutMatch[1].toLowerCase()
-      if (mode === 'focus' || mode === 'standard') {
-        useSettingsStore.getState().update({ layout: mode as 'standard' | 'focus' })
-      }
-      return true
-    }
-    // /settings
-    if (input === '/settings') {
-      window.dispatchEvent(new CustomEvent('mady:open-settings'))
-      return true
-    }
-    // /export [format]
-    const exportMatch = input.match(/^\/export\s+(.+)$/) || (input === '/export' ? ['', 'markdown'] : null)
-    if (exportMatch) {
-      const fmt = exportMatch[1] === 'json' ? 'json' as const : 'markdown' as const
-      const messages = useChatStore.getState().messages
-      if (messages.length === 0) return true
-      const content = exportSession(messages, { format: fmt, title: '会话导出' })
-      const filename = generateExportFilename(fmt)
-      downloadSession(content, filename, fmt)
-      return true
-    }
-    // /clear
-    if (input === '/clear' || input === '/new') {
-      useChatStore.setState({ ...initialState, ready: true, threads: useChatStore.getState().threads })
-      return true
-    }
-    return false
-  }
 
   // ── 发送 ────────────────────────────────────────
 
@@ -264,7 +182,7 @@ export const Composer: React.FC = () => {
     if (showCommands) return
 
     // 检测本地 UI 命令
-    if (tryLocalCommand(trimmed)) {
+    if (tryLocalCommand(trimmed, setMode)) {
       setText('')
       return
     }
