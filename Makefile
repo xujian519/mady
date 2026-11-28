@@ -23,7 +23,7 @@ GOLANGCI_LINT_VERSION ?= $(shell cat .golangci-version)
         build-cli-chat build-wiki-import build-acp-server build-mady \
         run-cli-chat run-server run-tui-demo run-a2a-server run-a2a-client run-mady run-acp-server \
         eval eval-race \
-        doc-check check-arch verify-layers debt-check \
+        doc-check check-arch verify-layers debt-check metrics-trend \
         help
 
 # Default target
@@ -47,7 +47,7 @@ doc-check:
 
 # "提交前真实标准"——比 all 更完整：包含 lint（golangci-lint）、verify-layers 与
 # test-race（竞态检测）。提交前请运行 make verify 而非 make all，以确保门禁完整闭合。
-verify: lint check-arch doc-check verify-layers debt-check build test-race
+verify: lint check-arch doc-check verify-layers debt-check metrics-trend build test-race
 
 # 债务编号 ↔ GitHub issue 映射一致性校验（事实源 docs/plans/debt-issues.json）。
 # 守卫 docs/plans/debt-issue-map.md 的索引区块时效性、编号唯一性与双向可追溯性，
@@ -55,6 +55,19 @@ verify: lint check-arch doc-check verify-layers debt-check build test-race
 # 离线校验，不访问 GitHub；需要核查 issue 存活时显式加 -gh。
 debt-check:
 	@go run scripts/debtlink/main.go -check
+
+# 代码气味指标趋势门禁：把终审报告 §二 的指标固化为可比对基线
+# （docs/code-health/metrics-baseline.json 单源，说明见 docs/code-health/metrics-trend.md）。
+# 当前值高于基线即失败——防吞错注释被回退、导出注释被删、长函数膨胀；
+# 低于基线时用 `python3 scripts/check_metrics_trend.py --update` 棘轮下压。
+# fail-closed：python3 缺失时报错退出，不静默放行。
+metrics-trend:
+	@if command -v python3 >/dev/null 2>&1; then \
+		python3 scripts/check_metrics_trend.py; \
+	else \
+		echo "❌ python3 不可用，指标趋势检查未执行（fail-closed）"; \
+		exit 1; \
+	fi
 
 # tone-style 禁用词门禁：扫描面向用户文案目录（guardrails/server/agui/a2ui/pkg/i18n）
 # 的 Go 源码，命中禁用词即失败。词表单源解析 docs/tone-style-guide.md §4（防漂移），

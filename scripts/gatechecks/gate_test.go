@@ -6,6 +6,7 @@
 //   - TestCheckCoverage：覆盖率门禁（40% 必拦 / 60% 放行，阈值同源 codecov.yml）
 //   - TestToneWordsGate：tone 禁用词门禁（字符串文案含「一定构成侵权」必拦 / 正常放行）
 //   - TestPrecommitLintFailClosed：lint 工具缺失时阻断提交（fail-closed，单向）
+//   - TestMetricsTrendGate：指标趋势门禁（高于基线必拦 / 持平放行 / 基线缺失 fail-closed）
 //
 // 红绿测试在 t.TempDir() 隔离的临时 git 仓库内执行（只 git add 不 commit），
 // 不触碰真实仓库状态。位于根模块 `go test ./...` 覆盖内，make verify 与 CI 自动执行。
@@ -13,6 +14,7 @@ package gatechecks
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -298,5 +300,81 @@ func TestPrecommitLintFailClosed_MissingLintBinary(t *testing.T) {
 	}
 	if !strings.Contains(out, "未安装") {
 		t.Errorf("输出应提示未安装与安装方式:\n%s", out)
+	}
+}
+
+// --- 指标趋势门禁 --------------------------------------------------------------
+
+// trendRepo 构造临时仓库：一个含裸 fmt 的库代码文件 + 指定基线值。
+// 基线 JSON 必须含 root/tui/desktop 三模块全部受门槛指标（脚本 fail-closed 校验）。
+func trendRepo(t *testing.T, bareFmtBaseline int) string {
+	t.Helper()
+	dir := t.TempDir()
+	gitInit(t, dir)
+
+	if err := os.MkdirAll(filepath.Join(dir, "agentcore"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := "package agentcore\n\nimport \"fmt\"\n\n// Log 打印调试信息。\nfunc Log() { fmt.Println(\"debug\") }\n"
+	if err := os.WriteFile(filepath.Join(dir, "agentcore", "debug.go"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	baselineDir := filepath.Join(dir, "docs", "code-health")
+	if err := os.MkdirAll(baselineDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bl := fmt.Sprintf(`{
+  "updated": "2026-11-28",
+  "modules": {
+    "root": {"files": 1, "bare_fmt": %d, "ignored_err": 0, "silent_return": 0, "uncommented_exported": 0, "long_funcs": 0, "fixme": 0},
+    "tui": {"files": 0, "bare_fmt": 0, "ignored_err": 0, "silent_return": 0, "uncommented_exported": 0, "long_funcs": 0, "fixme": 0},
+    "desktop": {"files": 0, "bare_fmt": 0, "ignored_err": 0, "silent_return": 0, "uncommented_exported": 0, "long_funcs": 0, "fixme": 0}
+  }
+}
+`, bareFmtBaseline)
+	if err := os.WriteFile(filepath.Join(baselineDir, "metrics-baseline.json"), []byte(bl), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if code, out := runCmd(t, dir, nil, "git", "add", "."); code != 0 {
+		t.Fatalf("git add 失败(%d): %s", code, out)
+	}
+	return dir
+}
+
+func TestMetricsTrendGate_Red_Regression(t *testing.T) {
+	// 基线 0，实际 1 处裸 fmt——必须 exit 1 并指出 bare_fmt
+	dir := trendRepo(t, 0)
+	code, out := runCmd(t, dir, nil, "python3", scriptPath("check_metrics_trend.py"))
+	if code != 1 {
+		t.Errorf("指标高于基线应被拦截（exit 1），实际 exit=%d 输出:\n%s", code, out)
+	}
+	if !strings.Contains(out, "bare_fmt") {
+		t.Errorf("错误输出应指出反弹指标 bare_fmt:\n%s", out)
+	}
+}
+
+func TestMetricsTrendGate_Green_AtBaseline(t *testing.T) {
+	// 基线与实际一致（1 处裸 fmt 已登记为基线）——应放行
+	dir := trendRepo(t, 1)
+	code, out := runCmd(t, dir, nil, "python3", scriptPath("check_metrics_trend.py"))
+	if code != 0 {
+		t.Errorf("指标持平应放行（exit 0），实际 exit=%d 输出:\n%s", code, out)
+	}
+}
+
+func TestMetricsTrendGate_Red_MissingBaseline(t *testing.T) {
+	// 基线缺失必须 fail-closed（exit 1），不得静默当作 0 放行
+	dir := trendRepo(t, 1)
+	if err := os.Remove(filepath.Join(dir, "docs", "code-health", "metrics-baseline.json")); err != nil {
+		t.Fatal(err)
+	}
+	code, out := runCmd(t, dir, nil, "python3", scriptPath("check_metrics_trend.py"))
+	if code != 1 {
+		t.Errorf("基线缺失应阻断（exit 1），实际 exit=%d 输出:\n%s", code, out)
+	}
+	if !strings.Contains(out, "fail-closed") {
+		t.Errorf("输出应标明 fail-closed:\n%s", out)
 	}
 }

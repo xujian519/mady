@@ -43,7 +43,9 @@ import subprocess
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+# 扫描根默认为脚本所在仓库根；MADY_SCAN_ROOT 供门禁自测指向临时仓库
+# （scripts/gatechecks 的负控制夹具），正常使用不要设置。
+REPO_ROOT = os.environ.get("MADY_SCAN_ROOT") or os.path.dirname(SCRIPT_DIR)
 
 # 默认扫描范围：根模块（go.work 的 "."）。tui/ desktop/ 为独立 go.mod 子模块，
 # 需要时显式传入或 --all-modules（跨模块统一计数会稀释单模块报告）。

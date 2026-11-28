@@ -1,0 +1,35 @@
+{
+  "updated": "2026-11-28",
+  "policy": "当前值高于基线即失败（防反弹）；低于基线可用 --update 棘轮下压。基线只由显式提交更新，CI 永不写基线。",
+  "source": "python3 scripts/scan_go_smells.py（口径见 scripts/scan_go_smells.py docstring）",
+  "note": "cli_fmt 与 files 不设阈值：前者是 CLI 输出层规范豁免（docs/cli-output-standards.md），后者随功能增长。",
+  "modules": {
+    "root": {
+      "files": 1050,
+      "bare_fmt": 0,
+      "ignored_err": 0,
+      "silent_return": 0,
+      "uncommented_exported": 0,
+      "long_funcs": 35,
+      "fixme": 3
+    },
+    "tui": {
+      "files": 131,
+      "bare_fmt": 0,
+      "ignored_err": 0,
+      "silent_return": 0,
+      "uncommented_exported": 0,
+      "long_funcs": 10,
+      "fixme": 0
+    },
+    "desktop": {
+      "files": 22,
+      "bare_fmt": 0,
+      "ignored_err": 0,
+      "silent_return": 0,
+      "uncommented_exported": 0,
+      "long_funcs": 0,
+      "fixme": 0
+    }
+  }
+}

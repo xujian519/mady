@@ -117,6 +117,18 @@ jobs:
       - name: Run doc consistency check
         run: make doc-check
 
+  metrics-trend:
+    # 代码气味指标趋势门禁：吞错 / 忽略 err / 未注释导出 / 长函数等指标不得高于基线
+    # （基线单源 docs/code-health/metrics-baseline.json，语义见
+    # docs/code-health/metrics-trend.md）。python3 由 ubuntu-latest 自带。
+    runs-on: ubuntu-latest
+    name: metrics-trend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check metrics trend
+        run: make metrics-trend
+
   debt-check:
     # 债务编号 ↔ GitHub issue 映射门禁：事实源 docs/plans/debt-issues.json 与
     # docs/plans/debt-issue-map.md 的索引区块必须双向一致、编号不得重复、
