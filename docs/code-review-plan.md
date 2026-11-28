@@ -1292,4 +1292,4 @@
 - **导出面核对**：拆分前 66 个导出声明，拆分后 66 个（28 + 29 + 12 减去被收窄私有的 2 个 helper，加上必须导出的 `callBinding`）；行多重集 361 = 361，唯一差异是 `callBinding` 由私有改为导出
 - **门禁**：`npx tsc --noEmit` 0 error（消费方零改动即编译通过，证明导出面未破）；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例
 - **发现分级**：P0 0 项；P3 1 项（初版脚本把 `isWailsHost`/`resolveBinding` 一并导出，已收窄为私有，避免无谓扩大 API 面）
-- **提交**：待回填
+- **提交**：1cb43f90（refactor）、8eceb658（docs + changelog）
