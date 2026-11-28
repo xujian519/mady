@@ -194,7 +194,7 @@
 | M67-1 | 协议护栏 1：AGUI + A2UI golden fixture | 锁定 AGUI 23 事件名 / BaseEvent 字段 / 消息 ID 规则与 A2UI 版本、四信封、JSONL 帧；契约漂移测试即红（受「单卡 3-5 文件」约束拆分） | ✅ 2026-11-28 |
 | M67-2 | 协议护栏 2：A2A + ACP + server + MCP | 锁定 A2A 端点/方法集/错误码/枚举/SSE 帧、ACP 方法集/错误码/通知帧、server 路由表/版本头/schema 常量/SSE 帧、MCP 11 个 RPC 名 + 5 个事件名 | ✅ 2026-11-28 |
 | M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ✅ 2026-11-28 |
-| M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ⬜ |
+| M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ✅ 2026-11-28 |
 | M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ⬜ |
 
 
@@ -1487,3 +1487,31 @@
   `go test -race ./agui` 全绿；`go test -race ./...` 仅剩预存失败 `knowledge/sqlite TestSearchLaws`；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
 - **提交**：738015e7（refactor）、c446d1a7（docs + changelog + 指标基线）
+
+### M69（2026-11-28）弱覆盖层补测：`mcp/` + `bootstrap/` ✅
+
+- **范围**：按 M66 基线的薄弱点排序（`bootstrap` 3.4% > `mcp` 72.1%），补三类缺失测试；**只加测试，零生产代码改动**
+- **交付**（4 个测试文件）：
+  - `bootstrap/agentconfig/coverage_test.go`（14 组）：Provider 目录完整性与唯一性、`ModelsForProvider`
+    的 generic 环境变量分支、`DefaultModelForProvider` / `DefaultModel` 的 `PROVIDER`/`MODEL` 回退、
+    `ToolDomainSet` 去重与命中、`ParseRoleYAML` 两种格式与非法 YAML、`NewRoleSet` 文件缺失、
+    `RoleSet.Get/IDs/Merge` 的 nil 安全与覆盖语义、`RoleConfig.Validate` 六类非法输入、
+    `ResolveContextWindow` 前缀边界（`glm-50` 不误匹配）、`ThinkingFromEnv` 全空/全设/非法值
+  - `bootstrap/plantask_bridge_test.go`（6 组 + 内存 TaskStore）：`Replan` 保持已完成步骤、
+    `重跑:` 显式语法移除完成标记、生成器报错时会话零改写、无生成器时保持当前步骤、
+    `toSnapshots` 哈希一致性、`mapKeys` 排序
+  - `mcp/discovery_prompt_test.go`（4 组）：`dataURL` 缺省 MIME、`PromptMessage.AgentMessage`
+    八类分支（text/image/resource 内嵌文本/URI/空指针/未知类型兜底）、`PromptResult.AgentMessages`、
+    `DiscoveryExtension` 的拒绝构造（nil client / 未启用工具）与默认/自定义名称
+  - `mcp/extension_snapshot_test.go`（3 组）：`sessionExpiredError` 的 `errors.Is`、
+    HTTP/Stdio 扩展 `Name` 与 `SnapshotEvents`（Transport 分别为 `http`/`stdio`、nil client 返回 nil）、
+    5 个 MCP 事件的 `EventKind`/`EventTime` 映射
+- **覆盖增量（实测）**：`bootstrap/agentconfig` **46.2% → 80.8%**；`mcp` **72.1% → 74.8%**；
+  `bootstrap` **3.4% → 7.5%**（Replan 闭环已覆盖，剩余为 knowledge/retrieval/tracing 等重依赖装配，
+  单卡内不mock 全套基础设施）
+- **发现分级**：P0 0 项；P2 1 项（`bootstrap` 主包剩余 92.5% 未覆盖集中在 `setup_steps` /
+  `init_knowledge` / `init_reasoning` 等启动装配，需集成级测试环境，建议 M70 后单独立卡）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./bootstrap/... ./mcp/...` **0 issues**；
+  `go test -race ./bootstrap/... ./mcp/` 全绿；`go test -race ./...` 仅剩预存失败
+  `knowledge/sqlite TestSearchLaws`；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+  （同时同步 AGENTS.md 文件计数：1876 = 1236 非测试 + 644 测试）
