@@ -1258,4 +1258,4 @@
 - **隔离措施**：每例前后用 `useChatStore.setState(getInitialState(), true)` 重置 store，避免用例串扰
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 40 例（36 + 4）
 - **发现分级**：P0 0 项；P2 0 项
-- **提交**：待回填
+- **提交**：0e17765b（test）、5038bb0c（docs + changelog）
