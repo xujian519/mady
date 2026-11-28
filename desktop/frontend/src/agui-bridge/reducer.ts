@@ -9,11 +9,28 @@
 
 import { useChatStore, type ToolCall, type TaskItem } from '@/stores/chat'
 import { useA2UIStore } from '@/a2ui-renderer/a2ui-store'
+import type {
+  AgentStartPayload,
+  AguiEventName,
+  AguiEventPayloads,
+  ApprovalPromptPayload,
+  AutoRetryValue,
+  CompactionValue,
+  ContextUsagePayload,
+  CustomValuePayload,
+  DonePayload,
+  ErrorPayload,
+  MessageDeltaPayload,
+  RunFinishedPayload,
+  StepStartedPayload,
+  TaskPayload,
+  ToolCallArgsPayload,
+  ToolCallEndPayload,
+  ToolCallResultPayload,
+  ToolCallStartPayload,
+} from './payloads'
 
-/**
- * AGUI 事件负载（通用）。具体结构取决于事件类型。
- */
-export type AguiEventPayload = any
+export type { AguiEventName, AguiEventPayload } from './payloads'
 
 // ── 流式 delta 批处理（M-DSK-PRF-001/004，G-I5） ──
 //
@@ -43,14 +60,14 @@ function scheduleDeltaFlush() {
 
 // ── 子处理器 ──────────────────────────────────────
 
-function handleAgentStart(payload: AguiEventPayload) {
+function handleAgentStart(payload: AgentStartPayload) {
   const store = useChatStore.getState()
   if (payload.threadId) store.setThreadId(payload.threadId)
   if (payload.runId) store.setRunning(payload.runId)
   store.setToolCallBuffer(null)
 }
 
-function handleMessageDelta(payload: AguiEventPayload) {
+function handleMessageDelta(payload: MessageDeltaPayload) {
   deltaBuffer.output += payload.delta ?? payload.content ?? ''
   // 收到新 token 即清除重试提示（不等批 flush）：
   // appendToken 内清 retryNotice 的逻辑随 16ms 批处理被延迟，
@@ -59,12 +76,12 @@ function handleMessageDelta(payload: AguiEventPayload) {
   scheduleDeltaFlush()
 }
 
-function handleThinkingDelta(payload: AguiEventPayload) {
+function handleThinkingDelta(payload: MessageDeltaPayload) {
   deltaBuffer.thinking += payload.delta ?? payload.content ?? ''
   scheduleDeltaFlush()
 }
 
-function handleToolCallStart(payload: AguiEventPayload) {
+function handleToolCallStart(payload: ToolCallStartPayload) {
   const tc: ToolCall = {
     id: payload.toolCallId ?? payload.id ?? '',
     // Go 端 ToolCallStartEvent 的 JSON 字段为 toolCallName
@@ -79,7 +96,7 @@ function handleToolCallStart(payload: AguiEventPayload) {
 }
 
 /** tool-call-args：流式填充 ToolCard 参数（增量追加）。 */
-function handleToolCallArgs(payload: AguiEventPayload) {
+function handleToolCallArgs(payload: ToolCallArgsPayload) {
   const id = payload.toolCallId ?? ''
   const delta = payload.delta ?? ''
   if (!id || !delta) return
@@ -93,14 +110,14 @@ function handleToolCallArgs(payload: AguiEventPayload) {
 }
 
 /** tool-call-result：显示工具调用结果（Go 端在 tool-call-end 后立即发出）。 */
-function handleToolCallResult(payload: AguiEventPayload) {
+function handleToolCallResult(payload: ToolCallResultPayload) {
   const id = payload.toolCallId ?? ''
   if (!id) return
   useChatStore.getState().updateToolCall(id, { result: payload.content ?? '' })
 }
 
 /** step-started：进度指示器（多步 turn 场景）。 */
-function handleStepStarted(payload: AguiEventPayload) {
+function handleStepStarted(payload: StepStartedPayload) {
   useChatStore.getState().setStep(payload.stepName ?? '')
 }
 
@@ -110,7 +127,7 @@ function handleStepFinished() {
 }
 
 /** compaction-start：上下文压缩提示（CustomEvent，payload.value 携带数据）。 */
-function handleCompactionStart(payload: AguiEventPayload) {
+function handleCompactionStart(payload: CustomValuePayload<CompactionValue>) {
   const v = payload.value ?? {}
   useChatStore.getState().setCompaction({
     active: true,
@@ -119,7 +136,7 @@ function handleCompactionStart(payload: AguiEventPayload) {
 }
 
 /** compaction-end：压缩完成摘要（保留展示至下一轮）。 */
-function handleCompactionEnd(payload: AguiEventPayload) {
+function handleCompactionEnd(payload: CustomValuePayload<CompactionValue>) {
   const v = payload.value ?? {}
   useChatStore.getState().setCompaction({
     active: false,
@@ -131,7 +148,7 @@ function handleCompactionEnd(payload: AguiEventPayload) {
 }
 
 /** auto-retry：自动重试提示（CustomEvent，收到后续 token 时自动清除）。 */
-function handleAutoRetry(payload: AguiEventPayload) {
+function handleAutoRetry(payload: CustomValuePayload<AutoRetryValue>) {
   const v = payload.value ?? {}
   useChatStore.getState().setRetryNotice({
     attempt: v.attempt ?? 0,
@@ -140,7 +157,7 @@ function handleAutoRetry(payload: AguiEventPayload) {
   })
 }
 
-function handleToolCallEnd(payload: AguiEventPayload) {
+function handleToolCallEnd(payload: ToolCallEndPayload) {
   const buf = useChatStore.getState().toolCallBuffer
   if (buf) {
     const updated: ToolCall = {
@@ -153,12 +170,12 @@ function handleToolCallEnd(payload: AguiEventPayload) {
   }
 }
 
-function handleError(payload: AguiEventPayload) {
+function handleError(payload: ErrorPayload) {
   const errMsg = payload.error ?? payload.message ?? 'Unknown error'
   useChatStore.getState().setError(errMsg)
 }
 
-function handleA2UI(payload: AguiEventPayload) {
+function handleA2UI(payload: AguiEventPayloads["a2ui"]) {
   // F-I5：A2UI 信封处理异常（如重复 createSurface 抛 SurfaceExistsError）
   // 不应中断 AGUI 事件流——捕获并记录，事件流继续。
   try {
@@ -168,7 +185,7 @@ function handleA2UI(payload: AguiEventPayload) {
   }
 }
 
-function handleApprovalPrompt(payload: AguiEventPayload) {
+function handleApprovalPrompt(payload: ApprovalPromptPayload) {
   const store = useChatStore.getState()
   store.setApprovalPrompt({
     id: payload.id ?? `approval-${Date.now()}`,
@@ -178,7 +195,7 @@ function handleApprovalPrompt(payload: AguiEventPayload) {
   })
 }
 
-function handleDone(payload: AguiEventPayload) {
+function handleDone(payload: DonePayload) {
   const store = useChatStore.getState()
   // G-I5：run 结束前强制 flush 流式缓冲，避免最后一批 token 丢失
   flushDeltas()
@@ -203,13 +220,14 @@ const TRUNCATION_NOTICES: Record<string, string> = {
   error: '⚠ 连接异常中断，输出可能不完整。可重新发送或让智能体重试。',
 }
 
-function handleRunFinished(payload: AguiEventPayload) {
-  const notice = TRUNCATION_NOTICES[payload.finishReason]
+function handleRunFinished(payload: RunFinishedPayload) {
+  const reason = payload.finishReason
+  const notice = reason ? TRUNCATION_NOTICES[reason] : undefined
   if (!notice) return
   useChatStore.getState().setTruncationNotice(notice)
 }
 
-function handleContextUsage(payload: AguiEventPayload) {
+function handleContextUsage(payload: ContextUsagePayload) {
   const store = useChatStore.getState()
   // ContextUsageEvent fields: usagePercent, tokenUsage.totalTokens, contextWindow
   const percent = payload.usagePercent ?? 0
@@ -220,7 +238,7 @@ function handleContextUsage(payload: AguiEventPayload) {
 }
 
 /** task-created：新待办任务创建（来自 agentcore/tasklist extension）。 */
-function handleTaskCreated(payload: AguiEventPayload) {
+function handleTaskCreated(payload: TaskPayload) {
   // payload 是 CustomEvent.Value，内嵌 TaskCreatedEvent.
   // TaskCreatedEvent 结构：{ task: { id, subject, status, priority, activeForm } }
   const taskRaw = payload.task ?? payload
@@ -236,7 +254,7 @@ function handleTaskCreated(payload: AguiEventPayload) {
 }
 
 /** task-updated：待办任务状态变更。 */
-function handleTaskUpdated(payload: AguiEventPayload) {
+function handleTaskUpdated(payload: TaskPayload) {
   // payload 是 CustomEvent.Value，内嵌 TaskUpdatedEvent.
   // TaskUpdatedEvent 结构：{ task: { id, subject, status, ... }, newStatus }
   const taskRaw = payload.task ?? payload
@@ -253,7 +271,12 @@ function handleTaskUpdated(payload: AguiEventPayload) {
 
 // ── 主分发器 ──────────────────────────────────────
 
-const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
+/** 事件名 → 处理器；键集合必须覆盖 `AguiEventPayloads` 的全部事件。 */
+type AguiHandlers = {
+  [K in AguiEventName]: (payload: AguiEventPayloads[K]) => void
+}
+
+const HANDLERS: AguiHandlers = {
   'agent-start': handleAgentStart,
   'message-delta': handleMessageDelta,
   'thinking-delta': handleThinkingDelta,
@@ -283,8 +306,12 @@ const HANDLERS: Record<string, (payload: AguiEventPayload) => void> = {
  * - text-message-start/end：消息边界由 finishTurn 统一提交
  * - thinking-start/end：思考区块由 thinking 累加器 + running 状态驱动
  */
-export function aguiReducer(eventName: string, payload: AguiEventPayload) {
-  const handler = HANDLERS[eventName]
+export function aguiReducer(eventName: string, payload: unknown) {
+  // 事件名来自 Wails 事件字符串，运行时才确定；查表后再断言载荷类型。
+  // 保留直接查表（而非 hasOwnProperty 判定）以维持既有分发语义。
+  const handler = HANDLERS[eventName as AguiEventName] as
+    | ((payload: unknown) => void)
+    | undefined
   if (handler) {
     handler(payload)
   }

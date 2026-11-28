@@ -49,7 +49,7 @@ const SUBSCRIBED_EVENTS = [
  */
 export function subscribeAguiEvents(): () => void {
   const unsubscribers = SUBSCRIBED_EVENTS.map((name) =>
-    listenToWailsEvent(`agui:${name}`, (payload: AguiEventPayload) => {
+    listenToWailsEvent<AguiEventPayload>(`agui:${name}`, (payload) => {
       aguiReducer(name, payload)
     }),
   )
