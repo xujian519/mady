@@ -1412,4 +1412,4 @@
 - **门禁**：无 Go 代码改动；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；
   `go test -cover` 七层全通过（无失败包）；`make doc-check check-arch verify-layers debt-check metrics-trend` 通过
   （指标零变化：root 0/0/0/0/35/3、tui 0/0/0/0/10/0、desktop 全 0）
-- **提交**：（本卡为纯文档卡，见下条哈希回填）
+- **提交**：c36254ee（docs + changelog；纯文档卡无代码提交）
