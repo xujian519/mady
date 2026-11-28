@@ -51,7 +51,7 @@
 - [ ] 1. **死代码 / 未使用导出 / 孤儿文件**（`golangci-lint` staticcheck U1000 + 零消费导出 grep；注意区分"零消费但属公共 API"的保留导出）
 - [ ] 2. **被忽略的 error**（`_ = <expr>`、`if x, _ := ...`）——GO-STANDARDS §0.1#1「所有 error 必须检查」
 - [ ] 3. **静默吞错无意图注释**（`if err != nil { return zero }` 降级但无注释）——补 fail-safe 意图注释；`return err` 传播不算
-- [ ] 4. **裸 `fmt.Print`/`fmt.Println` 调试残留**（库代码应走结构化 `log`/`tracing`/`pkg/i18n`；main 包 CLI 输出豁免）
+- [ ] 4. **裸 `fmt.Print`/`fmt.Println` 调试残留**（库代码应走结构化 `log`/`tracing`/`pkg/i18n`；CLI 输出层——`cmd/` 与 `package main`——按 `docs/cli-output-standards.md` 豁免，扫描器单列 `cli_fmt`）
 - [ ] 5. **嵌套内联 + 超长函数 + 过深嵌套**（单函数 >120 行、高圈复杂度）——只记录待拆建议，不拆
 - [ ] 6. **重复代码可提取、冗余抽象**；禁 `common/`/`utils/`/`base/` 通用包（doc-check 包名守卫）
 - [ ] 7. **命名与注释**（`xxxMu` RWMutex 命名、导出符号必须中文注释、三组 import 排序、错误信息小写开头不加标点）
@@ -154,6 +154,7 @@
 | --- | --- | --- | --- |
 | M42 | agentcore/plantask 错误映射 fix（`ErrSessionNotFound` 区分「未找到」与读取失败） | 1 处契约，行为变化（用户批准） | ✅ 2026-11-28 |
 | M43 | agentcore/permission 敏感路径确认（`rule.go` 解析失败 fail-open 边界） | 1 处，仅补意图注释（零行为） | ✅ 2026-11-28 |
+| M44 | cmd/ CLI 输出规范卡（裸 fmt 指标口径收口） | 新增 `docs/cli-output-standards.md`；扫描器 `cli_fmt` 分类 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -164,7 +165,7 @@
 | 指标 | 基线值 | 目标 | 备注 |
 | --- | --- | --- | --- |
 | 根模块非测试 `.go` 文件 | 929 | — | CLAUDE.md 的 1093 含 tui/desktop 与未跟踪文件 |
-| 裸 `fmt.Print*`（库代码调试残留） | 66 | <30 | main 包 CLI 输出豁免；cmd 65 处为 subcmd 正常输出 |
+| 裸 `fmt.Print*`（库代码调试残留） | 66 | <30 | **M44 后口径**：只统计库代码（0 处）；CLI 输出层（`cmd/` + `package main`）单列 `cli_fmt` 179 处，规范见 `docs/cli-output-standards.md` |
 | 被忽略的 error（`_ = <expr>` 等） | 24 | ≤10 | GO-STANDARDS §0.1#1 |
 | 静默吞错无注释（降级无意图注释） | 380 | 显著下降 | 含 `if err := ...` 形式；补 fail-safe 意图注释 |
 | 未注释包级导出（函数/类型/变量） | 93 | ≤20 | tools 74 为主；方法不计 |
@@ -1047,3 +1048,18 @@
 - **指标重扫**（1050 文件）：静默吞错 **1 → 0**；忽略 error 0、未注释导出 0、TODO 3、裸 fmt 65、长函数 34 不变
 - **人工审阅**：敏感路径（`agentcore/permission/` 前缀）+ AI 参与，提交前经用户确认；gate 以 `SKIP=check-sensitive-paths` 放行，理由见 changelog
 - **提交**：30dfa5f8（refactor）、9ba8f19e（docs + changelog）
+
+### M44（2026-11-28）cmd/ CLI 输出规范卡：裸 fmt 指标收口 ✅
+
+- **范围**：终审报告 §四-1 唯一未达成指标——根模块「裸 fmt」65 处，全部在 `cmd/mady/subcmd`（8 文件：eval 14 / trust_knowledge 17 / mcp_install 13 / ocr 8 / util 5 / evidence 4 / patent 3 / trust_mcp 1）
+- **取证**：同属 CLI/示例输出层但此前被「main 包豁免」静默跳过的还有 `cmd/mady/main.go` 25、`cmd/export-benchmark/main.go` 6、`example/*/main.go` 83——豁免存在但不可见，无法判断是否有库代码混入
+- **规范落地（三件套·家）**：新增 `docs/cli-output-standards.md`
+  - 判定 CLI 输出层的唯一判据：代码是否直接面向终端用户展示结果（`cmd/` 全部 + 其他 `package main`）；库代码不得因被 CLI 调用而升格
+  - 通道约定：正常结果走 stdout（可管道化）；错误/用法/进度/状态提示/产物路径走 stderr；退出码由返回 `error` 决定；运行期诊断走 `slog`
+  - 豁免理由：`fmt.Print*` 在 CLI 层就是输出手段本身，改写 `slog` 只是绕道日志系统并丢失管道语义；豁免只针对通道、不针对内容（文案仍受 `tone-style-guide.md` 约束）
+- **机器验证（三件套·验证）**：`scripts/scan_go_smells.py` 新增 `cli_fmt` 指标——`cmd/` 与 `package main` 的 `fmt.Print*` 单独计数并在报告中展示为「CLI 层 fmt（豁免）」，不再静默丢弃；`--fail` 仍只拦库代码裸 fmt
+- **口径修正**：复核发现 M42 改写后的 `agentcore/plantask/extension.go:165` 哨兵映射分支被计为吞错 1（M43 记录中「吞错 1 → 0」仅覆盖 `rule.go`），补一行意图注释归零，零行为变更
+- **结果**：库代码裸 fmt 65 → **0**（指标达成）；`cli_fmt` 179 显式可见（cmd 96 + example 83）；静默吞错 **1 → 0**；被忽略 error 0、未注释导出 0、TODO 3、长函数 34 不变
+- **发现分级**：P0 0 项；P2 1 项（M43 吞错口径与实际计数不符，本卡更正并补注）
+- **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
+- **提交**：待回填

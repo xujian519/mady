@@ -54,6 +54,7 @@ make verify       # lint + build + test-race → 覆盖全部模块（root + tui
 | 目的 | 文档 |
 |------|------|
 | Go 代码规范 | `docs/GO-DEVELOPMENT-STANDARDS.md` |
+| CLI 输出规范 | `docs/cli-output-standards.md` |
 | 贡献流程 | `CONTRIBUTING.md` |
 | 安全策略 | `SECURITY.md` |
 | 措辞风格 | `docs/tone-style-guide.md` |

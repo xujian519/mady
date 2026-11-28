@@ -11,7 +11,7 @@
 1. **审阅覆盖率 100%**：M01–M36 与阶段 7 专项（M37-1～M37-6 吞错专项、M38 宽字符口径 fix、M39 忽略 error 收敛、M40 口径修正 + 导出补注、M41 可疑忽略 fix）逐卡完成，进度表可追溯，无跳卡、无延期遗留整卡。
 2. **行为不变**：阶段 1–6 全部提交为 `refactor` / `docs` 类型，未混入 `feat` / `fix`；阶段 7 的 `fix` 卡仅 M38（渲染口径，用户批准）与 M41（新增告警观测点 + 等价解析改写，用户批准），其余为 `refactor`（零行为变更）。每卡跑 build / vet / lint / arch / doc / layers / debt / test 门禁。
 3. **红线零触碰**：敏感路径权威源（18 文件 + 2 前缀）零改动（M37-3 唯一命中站点按规范跳过、仅登记）；A2A/A2UI/AGUI/ACP/Server/MCP 协议面与工具 `inputSchema` 零改动。
-4. **四项指标中「未注释导出」93 → 0、「静默吞错」380 → 1、「被忽略 error」24 → 0 三项达标**；「裸 fmt」未达计划目标，原因见 §四。
+4. **四项指标全部达标**：「未注释导出」93 → 0、「静默吞错」380 → 0、「被忽略 error」24 → 0、「裸 fmt」66 → 0（M44 口径收口：CLI 输出层单列 `cli_fmt` 179 处显式可见，规范见 `docs/cli-output-standards.md`）。
 5. **发现并登记的真 P0 行为缺陷：0 项**。审阅中登记的复杂度问题（长函数、大文件）按保守档只记录不拆，清单见 §五。
 
 ## 二、指标对比（`scripts/scan_go_smells.py`）
@@ -20,9 +20,9 @@
 
 | 指标 | 基线 2026-08-25 | 终态 2026-11-13 | 计划目标 | 结论 |
 | --- | --- | --- | --- | --- |
-| 裸 `fmt.Print*`（库代码调试残留） | 66 | 65 | < 30 | ❌ 未达成（见 §四-1） |
+| 裸 `fmt.Print*`（库代码调试残留） | 66 | **0** | < 30 | ✅ 达成（M44 口径收口，CLI 输出层单列 `cli_fmt` 179，见 §四-1） |
 | 被忽略的 error（`_ = <expr>` 等） | 24 | **0** | ≤ 10 | ✅ 达成（M39 收敛 + M40 口径修正 + M41 逐条判定，见 §四-2） |
-| 静默吞错无注释 | 380 | **1** | 显著下降 | ✅ 下降 99.7%（见 §四-3） |
+| 静默吞错无注释 | 380 | **0** | 显著下降 | ✅ 下降 100%（见 §四-3） |
 | 未注释包级导出 | 93 | **0** | ≤ 20 | ✅ 达成 |
 | >120 行单函数 | 30 | 34 | 不强制（保守档） | 记录（见 §五） |
 | TODO/FIXME/HACK | 6 | 3 | ≤ 6 | ✅ 达成（均为 `TODO:` 标准标注，已逐条核实） |
@@ -50,9 +50,9 @@
 
 ## 四、未达成指标的原因分析
 
-1. **裸 fmt 65 处**：全部集中在 `cmd/`（65/65），为 CLI 子命令的正常标准输出（`mady --help`、子命令结果打印），非库代码调试残留。基线注记已说明「cmd 65 处为 subcmd 正常输出」，故此目标自始不可达。**建议**：把 `cmd/**` 在 lint 规则中显式豁免，或制定 CLI 输出规范后关闭该指标。
+1. **裸 fmt 66 → 0（M44 口径收口）**：原 65 处全部集中在 `cmd/mady/subcmd`（8 文件），是 CLI 子命令的正常标准输出，非库代码调试残留；基线注记只覆盖 subcmd，漏算了 `cmd/mady/main.go`、`cmd/export-benchmark/main.go` 与 `example/*/main.go`。M44 新增 `docs/cli-output-standards.md` 作为 CLI 输出层的规范家（判定判据、stdout/stderr 通道约定、豁免理由），并让 `scripts/scan_go_smells.py` 把 `cmd/` 与 `package main` 的命中单独计入 `cli_fmt`（当前 179：cmd 96 + example 83），库代码「裸 fmt」指标归 **0**，`--fail` 仍只拦库代码。**指标关闭。**
 2. **忽略 err 0 处**（目标 ≤10，已达成并清零）：M39 将 23 处收敛至 8（`mcp` 12 处 Close 合并为 `closePipes` helper、`tools` 8 处 Wait 改为带 `//nolint:gosec // G104: cleanup-only` 的显式忽略、`domains`/`example`/`agentcore` 各 1～2 处补意图注释）；M40 修正扫描口径后，`cmd` 的 11 处 stderr 写入（`_, _ = fmt.Fprintf(stderr, ...)`，进程即将非零退出、无可补救）不再计入，同时新识别 10 处真实可疑忽略（见 §五 P2-9）；M41 逐条判定后 10 → 0——6 处改为 `slog.Warn`（内存汇总写入、案件工作区创建），2 处 `Sscanf` 改 `strconv.Atoi` 显式处理失败，2 处（`crypto/rand.Read`、BOM `Discard`）按库语义补 `scan-ignore` 豁免。
-3. **静默吞错 1 处**：M37 六卡按目录分批（domains 61 / 协议面 58 / 内核 34 / tools 61 / cmd 43 / 周边 50）逐处判定并补注 307 处，终态仅剩 `agentcore/permission/rule.go` 1 处——该文件属敏感路径（permission 前缀），按红线未改动，需人工确认后补注或改传播。
+3. **静默吞错 0 处**：M37 六卡按目录分批（domains 61 / 协议面 58 / 内核 34 / tools 61 / cmd 43 / 周边 50）逐处判定并补注 307 处；剩余 1 处 `agentcore/permission/rule.go`（敏感路径）由 M43 补注 fail-open 边界；M44 复核发现 M42 改写后的 `agentcore/plantask/extension.go` 映射分支被计入 1 处（M43 记录称「1 → 0」仅覆盖 `rule.go`），补一行意图注释后归零——零行为变更。
 
 ## 五、遗留清单（按建议优先级）
 
@@ -61,7 +61,7 @@
 **P1 建议专项（不改行为，但影响可维护性）**
 
 1. **静默吞错专项收敛**：✅ 已完成（M37-1～M37-6，307 处补注、零行为变更）。剩 1 处已由 M43 确认：
-   - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀）。M43 取证确认为**理论风险、当前不可利用**（生产规则均工具粒度、不解析 args），仅补意图注释说明 fail-open 边界，零行为变更；经用户人工确认后放行。
+   - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀）。M43 取证确认为**理论风险、当前不可利用**（生产规则均工具粒度、不解析 args），仅补意图注释说明 fail-open 边界，零行为变更；经用户人工确认后放行。M44 复核补注 `agentcore/plantask/extension.go` 的哨兵映射分支，全仓吞错归 **0**。
 2. **忽略 err 收敛**：✅ 已完成（M39 23 → 8，M40 口径修正后 10，M41 逐条判定后 **0**）。M39 处理的 `mcp`/`tools`/`domains`/`example`/`agentcore` 均归零；M40 识别出的 10 处真实可疑忽略由 M41 收口：6 处补 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免（见 P2-9）。
 3. **长函数**（>120 行）44 处：根模块 34、`tui/` 10。其中 `tui/` 已逐条登记（如 `layout/flex.go renderHorizontal`、`theme/palette.go BuildPalette`、`overlay_render.go composeOverlays`、`tui_render.go renderFrame`、`component/review_gate.go renderLocked` 等）。
 4. **大文件拆解候选**（保守档仅记录）：
