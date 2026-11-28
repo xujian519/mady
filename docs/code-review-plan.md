@@ -1143,4 +1143,4 @@
 - **指标**：非测试源文件 1223 → 1227（+4），测试 634；`long_funcs` 35 不变（`main` 397 仍超限，清单行号更新为 `main.go:29`）；`metrics-trend` 通过；`AGENTS.md` 事实源计数由 `doc-check --update` 自动同步（1861 / 1227 / 634）
 - **发现分级**：P0 0 项；P2 1 项（别名导入需手工补，已记录）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
-- **提交**：待回填
+- **提交**：4191ce3c（refactor）、4b099b7c（docs + changelog）
