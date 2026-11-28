@@ -159,6 +159,7 @@
 | M46 | 指标趋势看板卡（终审指标固化为 CI 门禁） | 新增 `metrics-baseline.json` + `check_metrics_trend.py`；`make metrics-trend` / CI job / 3 个负控制用例 | ✅ 2026-11-28 |
 | M47 | 大文件拆解卡 1：`domains/figure/generate/check.go` 981 行 | 纯声明块搬迁为 4 文件（174/489/213/123），零行为变更 | ✅ 2026-11-28 |
 | M48 | 护栏卡：example/ + evaluate/ 拆解前补特征测试 | 新增 2 个测试文件（CLI 纯函数 7 组、数据集 15 条体检） | ✅ 2026-11-28 |
+| M49 | 大文件拆解卡 2：`example/cli-chat/main.go` 979 行 | 主循环留 main.go，装配/工具/思考/纯函数拆 4 文件，零行为变更 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1126,3 +1127,20 @@
 - **发现分级**：P0 0 项；P2 1 项（数据集缺条数约束，本卡补上）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **提交**：1d0ad34b（test）、4a940428（docs + changelog）
+
+### M49（2026-11-28）大文件拆解卡 2：`example/cli-chat/main.go` ✅
+
+- **范围**：`example/cli-chat/main.go` 979 行（M48 已补 7 组特征测试作护栏），按「主循环 / 装配 / 工具 / 思考配置 / 纯函数」拆分
+- **方法**：纯声明块搬迁，函数体零改动；`main()`（397 行）与 `hotkeyRouter` 留在 `main.go`
+- **拆分结果**：
+  - `main.go` 440 行 — `main()` 交互循环 + `hotkeyRouter`
+  - `config.go` 272 行 — `threadStore`、`loadWikiStore`、`envConfig`/`setupEnvironment`、`agentConfigs`/`buildAgentConfigs`、`buildProvider`、`loadSkillsFromEnv`
+  - `thinking.go` 150 行 — `thinkingFromEnv` 与 clone/compact/format/parse 命令状态机
+  - `helpers.go` 88 行 — `parsePathListEnv`/`parseListEnv`、`defaultModel`、`storeHasKey`、`chatMessageFromAgentMessage`
+  - `tools.go` 71 行 — `weatherTool`/`calculatorTool`
+- **等价性验证**：拆分前后 gofmt 行多重集 **882 = 882 零差异**；M48 的 7 组特征测试全通过
+- **方法注意（登记）**：`goimports` 无法识别别名导入（`agentstore "…/store"`），切分后须手工补回；其余导入由 goimports 重算
+- **指标**：非测试源文件 1223 → 1227（+4），测试 634；`long_funcs` 35 不变（`main` 397 仍超限，清单行号更新为 `main.go:29`）；`metrics-trend` 通过；`AGENTS.md` 事实源计数由 `doc-check --update` 自动同步（1861 / 1227 / 634）
+- **发现分级**：P0 0 项；P2 1 项（别名导入需手工补，已记录）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **提交**：待回填

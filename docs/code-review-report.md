@@ -65,7 +65,7 @@
 2. **忽略 err 收敛**：✅ 已完成（M39 23 → 8，M40 口径修正后 10，M41 逐条判定后 **0**）。M39 处理的 `mcp`/`tools`/`domains`/`example`/`agentcore` 均归零；M40 识别出的 10 处真实可疑忽略由 M41 收口：6 处补 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免（见 P2-9）。
 3. **长函数**（>120 行）45 处：根模块 35、`tui/` 10。M45 已逐条登记到 `docs/code-health/long-function-inventory.md`（分级 P1 5 / P2 16 / P3 24，含拆分方向与保留理由；14 处带 `//nolint:gocognit` 显式豁免）。口径修正：扫描器原 `i - func_start > 120` 漏计「恰好 121 行」的函数，M45 改为含声明行计数（34 → 35）。
 4. **大文件拆解候选**（保守档仅记录）：
-   - Go：~~`domains/figure/generate/check.go` 978 行~~ ✅ M47 已拆分（`check.go` 174 + `check_scan.go` 489 + `check_path.go` 213 + `check_rules.go` 123，纯搬迁零行为变更）；余下候选 `example/cli-chat/main.go` 970、`domains/evidence/statutory.go` 848、`domains/figure/generate/dot.go` 822、`domains/figure/generate/tool.go` 773、`evaluate/benchmark/patent_exam_real_a22.go` 619。
+   - Go：~~`domains/figure/generate/check.go` 978 行~~ ✅ M47 已拆分（`check.go` 174 + `check_scan.go` 489 + `check_path.go` 213 + `check_rules.go` 123，纯搬迁零行为变更）；~~`example/cli-chat/main.go` 970 行~~ ✅ M49 已拆分（`main.go` 440 保留主循环与 hotkeyRouter + `config.go` 272 + `thinking.go` 150 + `helpers.go` 88 + `tools.go` 71）；余下候选 `domains/evidence/statutory.go` 848、`domains/figure/generate/dot.go` 822、`domains/figure/generate/tool.go` 773、`evaluate/benchmark/patent_exam_real_a22.go` 619（后两者已有 M48 护栏）。
    - 前端：`src/components/ProjectTree.tsx` 879 行、`src/components/chat/ChatView.tsx` 822、`src/lib/backend.ts` 569、`src/components/chat/Composer.tsx` 473、`src/components/SettingsPanel.tsx` 448。
 
 **P2 一致性（低优先）**

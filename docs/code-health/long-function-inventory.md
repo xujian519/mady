@@ -62,7 +62,7 @@
 
 | 行数 | 位置 | 函数 | 保留理由 |
 | ---: | --- | --- | --- |
-| 397 | `example/cli-chat/main.go:236` | `main` | 示例程序的交互循环，拆分收益低 |
+| 397 | `example/cli-chat/main.go:29` | `main` | 示例程序的交互循环，拆分收益低 |
 | 209 | `tools/browser_tool_navigate.go:19` | `handleNavigate` | 工具编排 + 平台分支，已 `nolint:gocognit` |
 | 164 | `agentcore/worker/catalog.go:77` | `DefaultWorkers` | 纯数据清单装配 |
 | 164 | `tools/execute_code.go:103` | `NewExecuteCodeTool` | 工具构造器，已 `nolint:gocognit` |
