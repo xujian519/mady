@@ -1206,4 +1206,4 @@
 - **发现分级**：P0 0 项；P2 0 项
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **阶段 8 收尾状态**：Go 侧大文件候选（check.go / cli-chat main.go / statutory.go / dot.go / tool.go / a22 数据集）全部处置完毕；前端 5 个大文件（`ProjectTree.tsx` 879 等）仍按保守档只记录不拆
-- **提交**：待回填
+- **提交**：6210747e（docs）、ec7ee7d2（docs + changelog）
