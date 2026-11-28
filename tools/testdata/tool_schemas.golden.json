@@ -1,0 +1,601 @@
+{
+  "bash": {
+    "properties": {
+      "command": {
+        "description": "要执行的 bash 命令",
+        "type": "string"
+      },
+      "timeout": {
+        "description": "超时时间（秒），可选参数，无默认超时",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "command"
+    ],
+    "type": "object"
+  },
+  "cnipr_search": {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "description": "检索条数（默认 10，最多 30）",
+        "maximum": 30,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "mode": {
+        "description": "检索 / 取 PDF 直链 / 查法律状态，默认 search",
+        "enum": [
+          "search",
+          "pdf_links",
+          "legal_status"
+        ],
+        "type": "string"
+      },
+      "numbers": {
+        "description": "公开(公告)号或申请号列表（mode=pdf_links/legal_status）",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "query": {
+        "description": "检索词（mode=search）",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "delete": {
+    "properties": {
+      "confirm": {
+        "description": "必须为 true 才能确认删除目录或受保护路径",
+        "type": "boolean"
+      },
+      "path": {
+        "description": "要删除的文件或目录路径",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "type": "object"
+  },
+  "edit": {
+    "properties": {
+      "edits": {
+        "description": "一个或多个目标替换。每个 edit 都基于原始文件进行匹配，而非增量式的。",
+        "items": {
+          "properties": {
+            "newText": {
+              "description": "此目标替换的新文本。",
+              "type": "string"
+            },
+            "oldText": {
+              "description": "一个目标替换的精确文本。必须在原始文件中唯一存在，且不能与同一次调用中的其他 edits[].oldText 重叠。",
+              "type": "string"
+            }
+          },
+          "required": [
+            "oldText",
+            "newText"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "path": {
+        "description": "要编辑的文件路径（相对或绝对路径）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "edits"
+    ],
+    "type": "object"
+  },
+  "find": {
+    "properties": {
+      "limit": {
+        "description": "最大结果数（默认：1000）",
+        "type": "integer"
+      },
+      "path": {
+        "description": "搜索的目录（默认：当前目录）",
+        "type": "string"
+      },
+      "pattern": {
+        "description": "匹配文件的 glob 模式，例如 '*.ts'、'**/*.json' 或 'src/**/*.spec.ts'",
+        "type": "string"
+      }
+    },
+    "required": [
+      "pattern"
+    ],
+    "type": "object"
+  },
+  "git_diff": {
+    "properties": {
+      "file_path": {
+        "description": "要显示差异的具体文件",
+        "type": "string"
+      },
+      "staged": {
+        "description": "显示已暂存的变更而非未暂存的变更",
+        "type": "boolean"
+      },
+      "target": {
+        "description": "要对比的提交、分支或文件（默认：工作区 vs HEAD）",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "git_log": {
+    "properties": {
+      "file_path": {
+        "description": "仅显示影响此文件的提交",
+        "type": "string"
+      },
+      "max_count": {
+        "description": "显示的最大提交数（默认：10）",
+        "type": "integer"
+      },
+      "oneline": {
+        "description": "每行显示一条提交（默认：true）",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "git_status": {
+    "properties": {},
+    "type": "object"
+  },
+  "glob": {
+    "properties": {
+      "limit": {
+        "description": "最大结果数（默认：1000）",
+        "type": "integer"
+      },
+      "path": {
+        "description": "搜索的目录（默认：当前目录）",
+        "type": "string"
+      },
+      "pattern": {
+        "description": "glob 模式，例如 '*.go'、'*.test.ts'、'Dockerfile*'",
+        "type": "string"
+      }
+    },
+    "required": [
+      "pattern"
+    ],
+    "type": "object"
+  },
+  "grep": {
+    "properties": {
+      "context": {
+        "description": "每个匹配前后显示的上下文行数（默认：0）",
+        "type": "integer"
+      },
+      "glob": {
+        "description": "按 glob 模式过滤文件，例如 '*.ts' 或 '**/*.spec.ts'",
+        "type": "string"
+      },
+      "ignoreCase": {
+        "description": "不区分大小写搜索（默认：false）",
+        "type": "boolean"
+      },
+      "limit": {
+        "description": "返回的最大匹配数（默认：100）",
+        "type": "integer"
+      },
+      "literal": {
+        "description": "将模式视为文本字符串而非正则表达式（默认：false）",
+        "type": "boolean"
+      },
+      "path": {
+        "description": "要搜索的目录或文件（默认：当前目录）",
+        "type": "string"
+      },
+      "pattern": {
+        "description": "搜索模式（正则表达式或文本字符串）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "pattern"
+    ],
+    "type": "object"
+  },
+  "ls": {
+    "properties": {
+      "limit": {
+        "description": "返回的最大条目数（默认：500）",
+        "type": "integer"
+      },
+      "path": {
+        "description": "要列出的目录（默认：当前目录）",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "move": {
+    "properties": {
+      "dest": {
+        "description": "目标路径",
+        "type": "string"
+      },
+      "source": {
+        "description": "源文件或目录路径",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "dest"
+    ],
+    "type": "object"
+  },
+  "ocr": {
+    "properties": {
+      "path": {
+        "description": "图片的本地文件路径，支持 PNG/JPEG/GIF",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "type": "object"
+  },
+  "office_to_pdf": {
+    "properties": {
+      "engine": {
+        "description": "转换通道；默认 auto（LibreOffice 优先，缺失时降级）。",
+        "enum": [
+          "auto",
+          "libreoffice",
+          "pandoc-typst"
+        ],
+        "type": "string"
+      },
+      "font": {
+        "description": "pandoc 通道使用的中文字体；省略时按平台默认（macOS 苹方、Windows 雅黑、Linux Noto Sans CJK SC）。",
+        "type": "string"
+      },
+      "input": {
+        "description": "待转换的 Office 文件路径。",
+        "type": "string"
+      },
+      "output": {
+        "description": "PDF 输出路径；省略时与源文件同目录同名。",
+        "type": "string"
+      }
+    },
+    "required": [
+      "input"
+    ],
+    "type": "object"
+  },
+  "paper_download": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "description": "paper_search 命中的 id（DOI/arXiv ID 等）",
+        "type": "string"
+      },
+      "output_dir": {
+        "description": "输出目录（相对工作目录或工作目录内的绝对路径）",
+        "type": "string"
+      },
+      "pdf_url": {
+        "description": "直接给 PDF 链接（跳过源解析）",
+        "type": "string"
+      },
+      "source": {
+        "description": "文献源 id（与 id 一起使用）",
+        "enum": [
+          "openalex",
+          "semantic-scholar",
+          "arxiv",
+          "crossref"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "description": "文件名（可选；缺省用源记录标题或链接文件名）",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "paper_list_sources": {
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object"
+  },
+  "paper_search": {
+    "additionalProperties": false,
+    "properties": {
+      "limit": {
+        "description": "每个源的条数上限（默认 10）",
+        "maximum": 25,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "query": {
+        "description": "检索词（英文或中文）",
+        "type": "string"
+      },
+      "sources": {
+        "description": "限定源（openalex/semantic-scholar/arxiv/crossref）；省略查全部",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "year_from": {
+        "description": "最早发表年份",
+        "minimum": 1900,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "patch": {
+    "properties": {
+      "new_string": {
+        "description": "替换后的新文本",
+        "type": "string"
+      },
+      "old_string": {
+        "description": "要替换的精确文本。必须在文件中恰好匹配一次。",
+        "type": "string"
+      },
+      "path": {
+        "description": "要修补的文件路径（相对或绝对路径）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "old_string",
+      "new_string"
+    ],
+    "type": "object"
+  },
+  "patent_document": {
+    "properties": {
+      "max_chars": {
+        "description": "返回全文的最大字符数（默认不限；超出部分截断并在 truncated 字段标注）",
+        "type": "integer"
+      },
+      "patent_number": {
+        "description": "专利号（如 US11452699B2、CN114526990A）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "patent_number"
+    ],
+    "type": "object"
+  },
+  "patent_download": {
+    "properties": {
+      "patent_numbers": {
+        "description": "专利号，多个用空格分隔",
+        "type": "string"
+      }
+    },
+    "required": [
+      "patent_numbers"
+    ],
+    "type": "object"
+  },
+  "patent_legal": {
+    "properties": {
+      "patent_numbers": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "patent_numbers"
+    ],
+    "type": "object"
+  },
+  "patent_lookup": {
+    "properties": {
+      "patent_number": {
+        "description": "专利申请号或公开号",
+        "type": "string"
+      }
+    },
+    "required": [
+      "patent_number"
+    ],
+    "type": "object"
+  },
+  "patent_web_search": {
+    "properties": {
+      "max_results": {
+        "description": "返回结果条数（默认 10，最大 100）",
+        "type": "integer"
+      },
+      "query": {
+        "description": "检索关键词（支持中文），如 '深度学习图像识别'",
+        "type": "string"
+      },
+      "source": {
+        "description": "数据源：auto 合并全部（默认），google 全球，cnipa 中国专利，espacenet 欧洲",
+        "enum": [
+          "auto",
+          "google",
+          "cnipa",
+          "espacenet"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "process": {
+    "properties": {
+      "action": {
+        "description": "要执行的操作：spawn、status、wait、kill、list",
+        "enum": [
+          "spawn",
+          "status",
+          "wait",
+          "kill",
+          "list"
+        ],
+        "type": "string"
+      },
+      "command": {
+        "description": "要执行的命令（spawn 操作必需）",
+        "type": "string"
+      },
+      "process_id": {
+        "description": "进程 ID（status、wait、kill 操作必需）",
+        "type": "string"
+      },
+      "timeout": {
+        "description": "wait 操作的超时时间（秒），可选参数",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "action"
+    ],
+    "type": "object"
+  },
+  "read": {
+    "properties": {
+      "limit": {
+        "description": "要读取的最大行数",
+        "type": "integer"
+      },
+      "offset": {
+        "description": "开始读取的行号（从 1 开始计数）",
+        "type": "integer"
+      },
+      "path": {
+        "description": "要读取的文件路径（相对或绝对路径）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "type": "object"
+  },
+  "scholar_search": {
+    "properties": {
+      "count": {
+        "default": 10,
+        "type": "integer"
+      },
+      "query": {
+        "description": "检索关键词，如 'transformer attention mechanism'",
+        "type": "string"
+      },
+      "year_from": {
+        "description": "发表年份起始（用于过滤新旧文献）",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "view": {
+    "properties": {
+      "depth": {
+        "description": "遍历的最大深度（默认：3）",
+        "type": "integer"
+      },
+      "path": {
+        "description": "要查看的目录（默认：当前目录）",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "vision_analyze": {
+    "properties": {
+      "base64": {
+        "description": "Base64 编码的图片数据（替代图片 URL/路径）",
+        "type": "string"
+      },
+      "image": {
+        "description": "图片的 URL 或本地文件路径",
+        "type": "string"
+      },
+      "prompt": {
+        "description": "关于图片的问题或指令（例如'描述这张图片'、'图片中显示什么文字？'）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "prompt"
+    ],
+    "type": "object"
+  },
+  "web_fetch": {
+    "properties": {
+      "url": {
+        "description": "要获取的 HTTP 或 HTTPS URL",
+        "type": "string"
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "type": "object"
+  },
+  "web_search": {
+    "properties": {
+      "count": {
+        "description": "返回的结果数（默认：10）",
+        "type": "integer"
+      },
+      "query": {
+        "description": "搜索查询字符串",
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "write_file": {
+    "properties": {
+      "content": {
+        "description": "写入文件的内容",
+        "type": "string"
+      },
+      "path": {
+        "description": "要写入的文件路径（相对或绝对路径）",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "content"
+    ],
+    "type": "object"
+  }
+}
