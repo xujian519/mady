@@ -165,6 +165,7 @@
 | M52 | 大文件拆解卡 5：`domains/figure/generate/tool.go` 773 行 | 工具入口留原文件，schema/执行渲染/路径解析拆 3 文件 | ✅ 2026-11-28 |
 | M53 | 大文件拆解收尾：`evaluate/benchmark/patent_exam_real_a22.go` 619 行 | 判定保留单文件（一法条一文件惯例），仅补三段年份注释 | ✅ 2026-11-28 |
 | M54 | 前端护栏卡：`ProjectTree.tsx` / `ChatView.tsx` 拆解前补特征测试 | 新增 22 例（组件 5 + 纯函数 17），前端用例 105 → 127 | ✅ 2026-11-28 |
+| M55 | 前端拆解卡 1：`ProjectTree.tsx` 879 行 | 主组件留原文件，纯逻辑与行组件拆 2 模块，零行为变更 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1220,3 +1221,16 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例（原 14 + 新增 22）
 - **发现分级**：P0 0 项；P2 1 项（ChatView 无法在 jsdom 直接加载，需 mock pdfjs——已记录，拆分时应把纯函数抽到无重依赖模块）
 - **提交**：82c79435（test）、2392cb20（docs + changelog）
+
+### M55（2026-11-28）前端拆解卡 1：`ProjectTree.tsx` ✅
+
+- **范围**：`src/components/ProjectTree.tsx` 879 行（M54 已补 5 例组件测试作护栏）
+- **方法**：按职责切分——纯逻辑（无 React 依赖）与单行渲染各自独立，主组件保留状态与交互
+- **拆分结果**：
+  - `ProjectTree.tsx` 593 行 — 主组件：树状态、根目录加载、右键菜单、重命名/新建/删除、项目切换、UI 状态类型（`ContextMenuState`/`EditingState`）
+  - `src/components/projectTree/tree.ts` 177 行 — `TreeNode` 模型、`TreeAction`、`fileEntryToNode`、`updateNode`、`findNode`、`treeReducer`、`removeNode`、`sortEntries`（不含 React 依赖，可直接单测）
+  - `src/components/projectTree/TreeNodeRow.tsx` 121 行 — 行渲染：展开箭头/图标/重命名输入框/错误指示
+- **等价性验证**：拆分块行多重集比对——原 46–341 行共 266 行，除移回主组件的 `ContextMenuState`/`EditingState`（2 个 UI 状态接口，未丢失）与新增模块头注释外无差异；M54 的 5 例组件测试全通过
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例
+- **发现分级**：P0 0 项；P2 1 项（切分时 `ContextMenuState`/`EditingState` 属 UI 状态而非纯树逻辑，已移回主组件并调整导入）
+- **提交**：待回填
