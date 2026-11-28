@@ -1233,4 +1233,4 @@
 - **等价性验证**：拆分块行多重集比对——原 46–341 行共 266 行，除移回主组件的 `ContextMenuState`/`EditingState`（2 个 UI 状态接口，未丢失）与新增模块头注释外无差异；M54 的 5 例组件测试全通过
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例
 - **发现分级**：P0 0 项；P2 1 项（切分时 `ContextMenuState`/`EditingState` 属 UI 状态而非纯树逻辑，已移回主组件并调整导入）
-- **提交**：待回填
+- **提交**：86ff29d4（refactor）、579e6e9d（docs + changelog）
