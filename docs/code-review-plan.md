@@ -185,6 +185,7 @@
 | M72 | AGUI 载荷类型收敛 | `AguiEventPayload = any` → 20 个事件的载荷映射（`agui-bridge/payloads.ts`），前端 `any` 归零 | ✅ 2026-11-28 |
 | M73 | 跨语言事件名契约护栏 | 新增 `desktop/agui_wails_contract_test.go`：后端映射表 ↔ 前端订阅/处理器/载荷三处键集合自动比对 | ✅ 2026-11-28 |
 | M74 | 工具 inputSchema 固化 | 新增 `tools/schema_contract_test.go` + golden：31 个内置工具 Parameters 快照，任何形状变化测试即红 | ✅ 2026-11-28 |
+| M75 | TUI 渲染回归取样 | 新增 `tui/component/render_golden_test.go` + golden：7 个工具卡/审批卡整卡输出快照 + 行宽硬约束 | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1486,6 +1487,28 @@
   `go test -race ./tools` 全绿；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
   （AGENTS.md / CLAUDE.md 计数同步 1882 = 1236 + 646）
 - **提交**：2bb6a64e（test）、44dc1649（docs + changelog）
+### M75（2026-11-28）TUI 渲染回归取样 ✅
+
+- **范围**：`tool_card` / `approval_card` 的换行、截断、边框对齐与宽字符（CJK）口径 M38 修过一次，
+  但既有用例只断言片段（颜色标记、是否含 diff 头），改错一列宽度不会被发现。本卡补「整卡输出」级护栏，
+  只加测试，零渲染代码改动
+- **交付**：
+  - 新增 `tui/component/render_golden_test.go`：7 个用例——工具卡 running / completed（带 1.2s 时长）/
+    failed（长 CJK 错误触发截断）/ collapsed（带 diff 但折叠）/ diff 展开（80 列 + CJK 文件名与内容）；
+    审批卡 basic（CJK 标题 + 支持/反对证据 + 两个动作 + Body Markdown）/ narrow（32 列）
+  - 新增 `tui/component/testdata/render_golden.txt`：整卡输出逐行快照。写入前**剥 ANSI 色码**
+    （避免依赖调色板与终端能力）并裁掉行尾空格（避免与 pre-commit trailing-whitespace 冲突），
+    golden 只反映布局
+  - 额外硬约束：每条渲染行的 `core.VisibleWidth` 不得超过目标宽度——宽字符列宽回归会直接失败
+  - 更新入口：`go test ./component -run TestRenderGolden -count=1 -args -update`
+- **负控制**：把 golden 中审批卡动作 `/approve → 批准通过` 改为 `→ 批准`，测试立即失败；恢复后全绿
+- **发现分级**：P0 0 项；P2 0 项
+- **门禁**：`cd tui && go build ./... && go vet ./...` 全绿；`golangci-lint run ./component/...` **0 issues**；
+  `go test -race ./component` 全绿；`go test -race ./...`（tui 模块）有 2 处**预存环境相关失败**：
+  `terminal TestTerminalSupportsKittyKeyboard_Detection`（需真实 TTY）与
+  `theme TestDetectColorModeAppleTerminal`（需 `TERM_PROGRAM=Apple_Terminal`），本机 `TERM=dumb` 下必失败，
+  与本卡无关、不修；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+  （AGENTS.md / CLAUDE.md 计数同步 1883 = 1236 + 647）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
