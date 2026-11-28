@@ -11,7 +11,7 @@
 > python3 scripts/scan_go_smells.py desktop --list-long-funcs    # desktop 子模块
 > ```
 >
-> 当前计数（2026-11-29 实测）：根模块 **35** + `tui/` **10** = **45 处**；`desktop/` 为 0
+> 当前计数（2026-11-28 实测）：根模块 **34** + `tui/` **10** = **44 处**；`desktop/` 为 0
 > （其 `third_party/` 由扫描器排除）。本表是快照，新增/消失以后续扫描输出为准。
 
 ## 1. 分级规则
@@ -25,7 +25,7 @@
 **P3 中的 14 处带 `//nolint:gocognit`**（根模块 7 + `tui/` 7）：豁免是显式例外
 （AGENTS.md 元规则「例外显式」），理由写在代码行尾注释；本表不对其做任何代码改动。
 
-分布：P1 **5** 处 / P2 **16** 处 / P3 **24** 处。
+分布：P1 **5** 处 / P2 **15** 处 / P3 **24** 处。
 
 ## 2. P1 — 优先拆解（5 处）
 
@@ -37,13 +37,12 @@
 | 124 | `domains/evidence/date.go:270` | `extractDateFromText` | 按日期格式族拆候选提取器 + 统一打分，格式表驱动 |
 | 123 | `tui/terminal/key_decode.go:126` | `decodeKittyU` | 纯函数，按 CSI-u 字段解析拆小函数，用表格驱动测试逐个锁定 |
 
-## 3. P2 — 有条件拆解（16 处）
+## 3. P2 — 有条件拆解（15 处）
 
 | 行数 | 位置 | 函数 | 拆分方向 |
 | ---: | --- | --- | --- |
 | 268 | `cmd/mady/tui.go:60` | `runTui` | 拆「参数/配置装配」与「事件循环启动」两段 |
 | 233 | `cmd/mady/slash_commands.go:294` | `registerPlanTaskCommands` | 注册项按领域拆 `registerPlanTask*` 子函数，主函数只留编排 |
-| 194 | `agui/converter.go:221` | `Converter.Convert` | 大 switch 按事件族拆 `convertXxx`（协议面：只重构，帧结构零改动） |
 | 190 | `cmd/mady/server.go:83` | `runServer` | 服务装配与路由/中间件注册分离 |
 | 164 | `domains/reasoning/plan_compiler.go:132` | `CompilePlanToGraph` | 节点装配按节点类型拆，边构建与校验独立 |
 | 153 | `mcp/config_discovery.go:82` | `DiscoverMCPExtensions` | 多来源发现各自成函数，合并与去重单列 |

@@ -10,7 +10,7 @@
       "ignored_err": 0,
       "silent_return": 0,
       "uncommented_exported": 0,
-      "long_funcs": 35,
+      "long_funcs": 34,
       "fixme": 3
     },
     "tui": {

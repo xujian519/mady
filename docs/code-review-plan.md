@@ -193,7 +193,7 @@
 | M66 | 协议契约基线（取证卡，不改代码） | 七层契约面盘点：帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / 工具 schema / instrumentation + 测试覆盖矩阵，产出 `docs/code-health/protocol-contract-baseline.md` | ✅ 2026-11-28 |
 | M67-1 | 协议护栏 1：AGUI + A2UI golden fixture | 锁定 AGUI 23 事件名 / BaseEvent 字段 / 消息 ID 规则与 A2UI 版本、四信封、JSONL 帧；契约漂移测试即红（受「单卡 3-5 文件」约束拆分） | ✅ 2026-11-28 |
 | M67-2 | 协议护栏 2：A2A + ACP + server + MCP | 锁定 A2A 端点/方法集/错误码/枚举/SSE 帧、ACP 方法集/错误码/通知帧、server 路由表/版本头/schema 常量/SSE 帧、MCP 11 个 RPC 名 + 5 个事件名 | ✅ 2026-11-28 |
-| M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ⬜ |
+| M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ✅ 2026-11-28 |
 | M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ⬜ |
 | M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ⬜ |
 
@@ -1466,3 +1466,23 @@
   `knowledge/sqlite TestSearchLaws`（缺本机 `~/.mady/knowledge/laws-full.db`），与本卡无关；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
 - **提交**：71a9f6b0（test）、0cd839ff（docs + changelog）
+
+### M68（2026-11-28）协议层内部重构 1：`Converter.Convert` 按事件族拆分 ✅
+
+- **范围**：`agui/converter.go` 的 `Convert`（194 行大 switch）拆分；**帧结构、事件顺序、字段值零改动**
+- **改动**：
+  - `Convert` 保留为纯分发（值/指针双形态各自保留一支，避免错落 default 分支改变事件序列），
+    分支体退化为一行 `convertXxx(...)` 调用；函数从 194 行降至约 90 行
+  - 新增 `agui/converter_events.go`（55 行）：`afterClose`（统一「先收尾进行中的消息/思考块、再追加
+    自身事件」）+ `convertRunStarted` / `convertAgentEnd` / `convertAgentError` / `convertTurnStart` /
+    `convertTurnEnd`（含 `accumulateUsage` 与 `CONTEXT_USAGE` 追加条件）
+  - 未新增/删除任何事件；`default` 分支的两次 `time.Now()` 独立采样行为原样保留；`*A2UIEvent`
+    仍只匹配指针形态（值形态继续落 default 透传），与重构前一致
+- **护栏**：M67-1 的 `agui/contract_test.go`（23 事件名、22 类事件 golden JSON、ID 序列、SSE 帧）
+  未做任何修改即全绿；`agui/converter_test.go` 878 行既有用例全绿
+- **指标**：`long_funcs` 根模块 35 → **34**（`docs/code-health/long-function-inventory.md` 同步移除该 P2 登记项；
+  `metrics-baseline.json` 棘轮下压至 34）
+- **发现分级**：P0 0 项；P1 0 项；P3 0 项（纯形状搬迁，无语义偏差）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./agui/... ./server/...` **0 issues**；
+  `go test -race ./agui` 全绿；`go test -race ./...` 仅剩预存失败 `knowledge/sqlite TestSearchLaws`；
+  `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
