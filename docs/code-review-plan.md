@@ -176,6 +176,7 @@
 | M63 | 依赖升级卡：Go 根模块 6 项 + 前端 26 项 | 同主版本 patch/minor；chromedp/onnxruntime 暂缓；补 dependabot npm 覆盖 | ✅ 2026-11-28 |
 | M64 | 前端拆解卡 6：`SettingsPanel.tsx` 377 行续拆 | AI 服务分区迁 `settings/AIServiceSection`（97），主组件 330 行 | ✅ 2026-11-28 |
 | M65 | 前端拆解卡 7：`SettingsPanel.tsx` 330 行续拆 | 左侧导航迁 `settings/SettingsNav`（51，含分区 ID 类型），主组件 304 行 | ✅ 2026-11-28 |
+| M71 | 阶段 7/8 遗留收口 | 前端 Wails 桥接 `any` 7 → 0（新增 `src/types/wails.d.ts`）；报告长函数 / 大文件拆解 / 事实源数字校正 | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1388,6 +1389,29 @@
 - **发现分级**：P0 0 项；P3 0 项
 - **拆解收尾（用户确认）**：本卡为 `SettingsPanel.tsx` 拆解终点。三次拆分 448 行（M62 前）→ 377（M62）→ 330（M64）→ 304（M65）；剩余 304 行是同一关注点内部的状态/effects/handlers 与 JSX 外壳，继续拆分会把单个组件的职责切散、增加 props 穿透，不再继续。
 - **提交**：a64ba714（refactor）、8cd13df1（docs + changelog）
+
+### M71（2026-11-28）阶段 7/8 遗留收口：前端 Wails `any` 清零 + 报告口径校正 ✅
+
+- **范围**：收口终审报告 §五-7（前端 `any`）与 §五-3 / §七-4 的过时登记；**类型级改动，零运行时行为变化**
+- **交付**：
+  - 新增 `desktop/frontend/src/types/wails.d.ts`：集中声明 `Window.runtime` / `Window.go` / `Window.__mady`
+    与 `MadyTestHooks`（`a2ui.applyEnvelope` / `getSurface`、`agui.dispatch` / `getChatState`），
+    取代原先分散在 `wails.ts`、`backend/runtime.ts` 的 `any` 断言与重复 `declare global`
+  - `src/lib/wails.ts`：`window.runtime` 直接判真；`listenToWailsEvent` 改为泛型载荷
+    `listenToWailsEvent<T>(eventName, (payload: T) => void)`，调用方按事件声明载荷类型
+  - `src/lib/backend/runtime.ts`：`window.go` 逐段下钻从 `any` 改为 `unknown` + `typeof === 'object'`
+    收窄（`null` 显式排除），函数取值处断言为 `(...args: unknown[]) => Promise<unknown>`
+  - `src/app/App.tsx`：`(window as any).__mady` 三处改为 `window.__mady`
+  - `src/components/chat/ChatView.tsx`：`useAutoScroll` 的 `virtualizer: any` 改为
+    `Virtualizer<HTMLDivElement, Element>`
+- **结果**：Wails 桥接 `any` **7 → 0**；剩余 1 处 `AguiEventPayload = any`（`reducer.ts:16`）
+  需为 23 类 AGUI 事件建判别联合并改造 30 处字段访问，已登记为后续独立卡，不在本卡扩范围
+- **报告校正**：§五-3 长函数 45/35/P2 16 → **44/34/P2 15**（M68 拆分 `Converter.Convert` 后棘轮）；
+  §五-7 标 ✅；§七-4「大文件拆解另立计划」标 ✅（阶段 8 M47–M65 已执行）；§六 终态事实源
+  `src=1220 test=632` → **1236 / 644**
+- **发现分级**：P0 0 项；P2 1 项（resolver 载荷类型收敛，已登记）
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` **142** 用例全绿（91 + 51）；
+  `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 

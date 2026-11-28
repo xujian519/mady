@@ -64,7 +64,7 @@
 1. **静默吞错专项收敛**：✅ 已完成（M37-1～M37-6，307 处补注、零行为变更）。剩 1 处已由 M43 确认：
    - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀）。M43 取证确认为**理论风险、当前不可利用**（生产规则均工具粒度、不解析 args），仅补意图注释说明 fail-open 边界，零行为变更；经用户人工确认后放行。M44 复核补注 `agentcore/plantask/extension.go` 的哨兵映射分支，全仓吞错归 **0**。
 2. **忽略 err 收敛**：✅ 已完成（M39 23 → 8，M40 口径修正后 10，M41 逐条判定后 **0**）。M39 处理的 `mcp`/`tools`/`domains`/`example`/`agentcore` 均归零；M40 识别出的 10 处真实可疑忽略由 M41 收口：6 处补 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免（见 P2-9）。
-3. **长函数**（>120 行）45 处：根模块 35、`tui/` 10。M45 已逐条登记到 `docs/code-health/long-function-inventory.md`（分级 P1 5 / P2 16 / P3 24，含拆分方向与保留理由；14 处带 `//nolint:gocognit` 显式豁免）。口径修正：扫描器原 `i - func_start > 120` 漏计「恰好 121 行」的函数，M45 改为含声明行计数（34 → 35）。
+3. **长函数**（>120 行）44 处：根模块 34、`tui/` 10。M45 已逐条登记到 `docs/code-health/long-function-inventory.md`（分级 P1 5 / P2 15 / P3 24，含拆分方向与保留理由；14 处带 `//nolint:gocognit` 显式豁免）。口径修正：扫描器原 `i - func_start > 120` 漏计「恰好 121 行」的函数，M45 改为含声明行计数（34 → 35）；M68 拆分 `agui/converter.go` 的 `Converter.Convert` 后根模块 35 → 34，基线同步棘轮下压。
 4. **大文件拆解候选**（保守档仅记录）：
    - Go：~~`domains/figure/generate/check.go` 978 行~~ ✅ M47 已拆分（`check.go` 174 + `check_scan.go` 489 + `check_path.go` 213 + `check_rules.go` 123，纯搬迁零行为变更）；~~`example/cli-chat/main.go` 970 行~~ ✅ M49 已拆分（`main.go` 440 保留主循环与 hotkeyRouter + `config.go` 272 + `thinking.go` 150 + `helpers.go` 88 + `tools.go` 71）；~~`domains/evidence/statutory.go` 848 行~~ ✅ M50 已拆分（`statutory.go` 439 模型与编排 + `statutory_kinds.go` 333 种类贡献 + `statutory_acquisition.go` 64 取得方式贡献）；~~`domains/figure/generate/dot.go` 822 行~~ ✅ M51 已拆分（`dot.go` 371 类型/选项/校验 + `dot_build.go` 287 四类图构建 + `dot_render.go` 92 页面与头部 + `dot_templates.go` 85 内置模板）；~~`domains/figure/generate/tool.go` 773 行~~ ✅ M52 已拆分（`tool.go` 196 工具定义与入口 + `tool_schema.go` 258 入参 schema + `tool_run.go` 218 执行与渲染 + `tool_path.go` 114 输出路径解析）；~~`evaluate/benchmark/patent_exam_real_a22.go` 619 行~~ → M53 决定**保留单文件**（该目录惯例是「一法条一文件」，a2/a26/a31/a33/r42 均同构；按年份拆会破坏惯例并需引入聚合变量），仅在数据集内补 2007–2011 / 2014–2015 / 2016–2019 三段年份注释，零结构改动
    - 前端：~~`src/components/ProjectTree.tsx` 879 行~~ ✅ M55 已拆分（`ProjectTree.tsx` 593 主组件 + `projectTree/tree.ts` 177 节点模型与 reducer + `projectTree/TreeNodeRow.tsx` 121 行渲染），M54 的 5 例组件测试继续兜底；~~`src/components/chat/ChatView.tsx` 822 行~~ ✅ M56 已拆分（`ChatView.tsx` 743 主组件与自动滚动 hook + `chat/transcript.ts` 95 历史映射/格式化/高度估算，17 例测试随函数迁至新模块且不再需要 pdfjs mock）；~~`src/lib/backend.ts` 569 行~~ ✅ M60 已拆分（`backend.ts` 15 行聚合入口 + `backend/runtime.ts` 133 声明解析/运行态 + `backend/conversation.ts` 247 会话与记忆 + `backend/workspace.ts` 202 文件/技能/MCP/知识库/项目，导出面不变）；~~`src/components/SettingsPanel.tsx` 448 行~~ ✅ M62 已拆分（`SettingsPanel.tsx` 377 主组件 + `settings/AppearanceSection.tsx` 59 + `settings/AboutSection.tsx` 81，分区改为纯展示组件、状态仍由主组件持有），M64 续拆（「AI 服务」分区迁 `settings/AIServiceSection.tsx` 97，主组件 330 行），M65 再拆（左侧导航迁 `settings/SettingsNav.tsx` 51，主组件 304 行）。
@@ -75,7 +75,7 @@
 
 5. 未注释导出：✅ 已清零（M40 补 `domains/patent.go` 的 `BuildProjectAgent` 注释），93 → 0。
 6. ~~**`domains/plantask/extension.go` 错误映射过粗**（M37-3 登记）~~ ✅ M42 已修复：新增 `ErrSessionNotFound` 哨兵，仅「未找到」映射为 `ErrNoActiveSession`，IO/权限/解析错误原样上抛（路径原记 `domains/` 有误，实际位于 `agentcore/plantask/`）。
-7. 前端 7 处 `any` 全在 Wails `window.go` / `window.runtime` 桥接，已收敛在 `src/lib/wails.ts` 与 `src/lib/backend.ts`；后续可在 `src/types/wails.d.ts` 用全局声明替代。
+7. ~~前端 Wails 桥接的 `any`~~ ✅ M71 已收口：`window.runtime` / `window.go` / `window.__mady` 三个全局与 `useAutoScroll` 的 virtualizer 参数共 7 处 `any` 全部消除，全局声明集中到 `src/types/wails.d.ts`（`MadyTestHooks` + `Window` 增强），`listenToWailsEvent` 改为泛型载荷 `T`。剩余 1 处 `AguiEventPayload = any`（`src/agui-bridge/reducer.ts:16`）**登记为后续独立卡**：收敛它需要为 23 类 AGUI 事件建判别联合并改造 30 处字段访问，超出「无行为变化」范围。
 8. ~~`tui/` TODO 8 处与裸 fmt 1 处为误报~~ ✅ M40 已修扫描器：TODO 仅识别 `TODO:` / `TODO(owner)` 标注形态（`TODO panel` 名词短语不再计入），OSC 52 剪贴板写入用行内 `// scan-ignore: bare_fmt — <原因>` 显式豁免；tui 两项均归零。
 9. ~~**10 处真实可疑忽略**（M40 口径修正后暴露，建议另开 fix 卡逐条判定是否应传播）~~ ✅ M41 已逐条判定并清零：
    - `domains/case_ext_register.go:43`、`domains/case_ext_sync.go:117`、`:195`——案件已落库/文档已记录，工作区创建失败不回滚整次操作，改为 `slog.Warn`
@@ -101,7 +101,7 @@ cd desktop && go build ./... && go vet ./... && golangci-lint run ./... && go te
 cd desktop/frontend && npx tsc --noEmit && npx eslint src/ && npm test
 ```
 
-终态事实源校验：`src=1220 test=632`、子命令 17、manifests 3、`LAYERS.md` 与 `tui/` 同步（131 文件）、事实源 61 条。前端 `tsc` 0 error、`eslint` 0 issue、vitest **142** 用例全绿（91 + 51，含 M54/M57/M58/M59 新增 37 例）。
+终态事实源校验（2026-11-28 复核）：`src=1236 test=644`、子命令 17、manifests 3、`LAYERS.md` 与 `tui/` 同步、事实源 61 条。前端 `tsc` 0 error、`eslint` 0 issue、vitest **142** 用例全绿（91 + 51，含 M54/M57/M58/M59 新增 37 例）。
 
 **预存失败收口情况**：`tui/` 的 17 个渲染失败用例已由 M38 全部收口（`cd tui && go test -race -count=1 ./...` 全绿）；根模块唯一残留失败为 `knowledge/sqlite` 的 `TestSearchLaws`，依赖本机 `~/.mady/knowledge/laws-full.db`，属环境依赖、与本轮审阅无关。
 
@@ -118,7 +118,7 @@ git diff --stat                                  # deletions 必须为 0，新�
 2. ~~一张「宽字符渲染口径」fix 卡（M38）~~ ✅ 已完成：边框字形固定单列 + 测试入口固定口径，`tui/` 全量全绿。
 3. ~~忽略 err 收敛小卡（M39）~~ ✅ 已完成：23 → 8（M40 口径修正后 10 处真实忽略）。
 3b. ~~**可疑忽略 fix 卡**（建议下一张）~~ ✅ 已完成（M41）：10 处逐条判定并清零，6 处改为 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免。
-4. 大文件拆解另立计划（需行为等价重构 + 完整测试护栏），不建议并入保守档。
+4. ~~大文件拆解另立计划~~ ✅ 已由阶段 8（M47–M65）执行完毕：Go 5 个候选拆分 / 1 个保留（M53），前端 5 个候选全部拆分；拆分前先补特征测试（M48/M54/M57–M59），零行为变更。
 5. ~~把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）~~ ✅ M46 已完成：基线单源 `docs/code-health/metrics-baseline.json`，`scripts/check_metrics_trend.py` 高于基线即失败、低于基线可棘轮下压、基线缺失 fail-closed；接入 `make verify` 与 CI `metrics-trend` job，并有 3 个红绿负控制用例（`scripts/gatechecks/`）。
 6. ~~依赖升级另立一卡~~ ✅ M63 已完成：Go 根模块 6 项直接依赖升到同主版本最新 patch/minor，前端 26 项在 semver 范围内升级，三模块与前端门禁全绿；`chromedp`（0.x minor 破坏性区间）与 `onnxruntime_purego`（与本地原生库耦合）登记暂缓，大版本迁移（React 19 / vite 8 / vitest 5 / TS 7）不在本轮范围。同时补齐 `.github/dependabot.yml` 的前端 `npm` 生态条目——此前只有根模块 gomod 被每周扫描。
 7. **协议面契约无护栏** → 阶段 9 立项（M66–M70）。M66 完成七层契约基线取证；M67 起把事件类型、JSON-RPC 方法、错误码、SSE/WS 帧固化为 golden fixture，任何契约漂移测试即红；M70 补齐按层协议文档与契约变更流程。协议层内部重构（M68）与弱覆盖补测（M69）不得改变任何帧结构。
