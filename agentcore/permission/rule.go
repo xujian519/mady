@@ -95,6 +95,10 @@ func extractMatchValue(toolName string, args json.RawMessage) string {
 
 	var m map[string]any
 	if err := json.Unmarshal(args, &m); err != nil {
+		// 参数损坏→返回空串（不匹配），不在此重复报错，交给工具自身参数校验兜底。
+		// 边界：当前策略规则均为工具粒度（Specifier 为空，不经过本函数）；若将来
+		// 引入带 specifier 的 Deny/MonotonicDeny，需评估改为 fail-closed，否则畸形
+		// 参数会使该规则不命中而绕过拒绝。
 		return ""
 	}
 
