@@ -195,7 +195,7 @@
 | M67-2 | 协议护栏 2：A2A + ACP + server + MCP | 锁定 A2A 端点/方法集/错误码/枚举/SSE 帧、ACP 方法集/错误码/通知帧、server 路由表/版本头/schema 常量/SSE 帧、MCP 11 个 RPC 名 + 5 个事件名 | ✅ 2026-11-28 |
 | M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ✅ 2026-11-28 |
 | M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ✅ 2026-11-28 |
-| M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ⬜ |
+| M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1448,7 +1448,7 @@
     （无 `id` 字段、`sessionId` + `sessionUpdate` 序列含 `user_message_chunk` / `agent_message_chunk`）
   - `server/contract_test.go`（4 组）：8 个流 schema 常量（`agent.event.v1` … `chat.done.v1`）；
     `registerAPIRoute` 双注册与 `X-API-Version: v1` / `X-API-Deprecated: true` + 日期、非 `/api/` 前缀不镜像；
-    路由表 36 条路径（`PATCH` 探测得 405）+ 表外 404；`/api/chat` SSE 帧格式（event+data 两行、data 合法 JSON、
+    路由表 39 条路径（`PATCH` 探测得 405）+ 表外 404；`/api/chat` SSE 帧格式（event+data 两行、data 合法 JSON、
     末帧 `done` 且含 `chat.done.v1`）
   - `mcp/contract_test.go`（2 组）：假 HTTP MCP 服务端记录 `method` 字段，驱动全部客户端 API 后比对
     11 个 RPC 方法集合（含 `notifications/initialized`）；5 个 `mcp_*` 事件名
@@ -1516,3 +1516,22 @@
   `knowledge/sqlite TestSearchLaws`；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
   （同时同步 AGENTS.md 文件计数：1876 = 1236 非测试 + 644 测试）
 - **提交**：0ae9d778（4 个测试文件 + docs + changelog，单提交）
+
+### M70（2026-11-28）协议契约文档与变更流程 ✅
+
+- **范围**：阶段 9 收尾卡，**只新增文档，零代码改动**：把 M66 基线（取证）、M67 fixture（机器验证）
+  与逐层线协议整理成接入方与改动方可直接查阅的参考，并确立契约变更的单一流程家
+- **交付**（2 个新文档）：
+  - `docs/protocol-overview.md`：七层地图（传输 / 对外角色 / 契约权威源 / fixture）、契约六类
+    的判定口径（含「不属于契约」的容许改动清单）、**契约变更流程**（判定表 → 立卡 → 同提交同步
+    代码/fixture/文档 → 人工 review → changelog → 全量验证）、四条禁止事项（含「不得把 A2A 无
+    `event:` 行与 AGUI 有 `event:` 行互相统一」）、M67-2 取证得到的 2 处按实现固化偏差、分层索引
+  - `docs/protocol-reference.md`：逐层线协议参考 §1–§7（A2A 端点/方法/枚举/错误码/SSE 帧、
+    A2UI 版本/四信封/三绑定、AGUI 23 事件/ID 规则/帧/HTTP 语义、ACP 11 方法/通知/错误码/行帧、
+    server 路由表/版本化头/8 个 schema/事件名来源、MCP 11 RPC/传输/事件/信任边界、bootstrap 装配
+    顺序敏感点）+ §8 fixture 索引（文件 → 锁定内容 → 代表用例 + 一键运行命令）
+- **口径校正**：server 路由探测路径实测 **39 条**（M67-2 记录中的「36 条」为笔误，本卡一并修正
+  plan / report 中的数字，避免文档漂移）
+- **发现分级**：P0 0 项；P3 1 项（M67-2 记录的路由条数笔误，已修正）
+- **门禁**：纯文档卡；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿，
+  `go build ./... && go vet ./...` 全绿（确认未误改代码）
