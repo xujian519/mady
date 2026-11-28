@@ -186,6 +186,7 @@
 | M73 | 跨语言事件名契约护栏 | 新增 `desktop/agui_wails_contract_test.go`：后端映射表 ↔ 前端订阅/处理器/载荷三处键集合自动比对 | ✅ 2026-11-28 |
 | M74 | 工具 inputSchema 固化 | 新增 `tools/schema_contract_test.go` + golden：31 个内置工具 Parameters 快照，任何形状变化测试即红 | ✅ 2026-11-28 |
 | M75 | TUI 渲染回归取样 | 新增 `tui/component/render_golden_test.go` + golden：7 个工具卡/审批卡整卡输出快照 + 行宽硬约束 | ✅ 2026-11-28 |
+| M76 | TUI 转录渲染取样 | 新增 `tui/chat/render_golden_test.go` + golden：7 个对话转录用例（CJK 换行/表格/流式光标/工具行/代码块/错误） | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1510,6 +1511,25 @@
   与本卡无关、不修；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
   （AGENTS.md / CLAUDE.md 计数同步 1883 = 1236 + 647）
 - **提交**：1d93d051（test）、efd5d2cf（docs + changelog）
+### M76（2026-11-28）TUI 对话转录渲染取样 ✅
+
+- **范围**：M75 只覆盖 tool_card / approval_card 组件级输出；最常被看到的**对话转录本体**
+  （`ChatHistory.Render`）仍无整段快照——用户消息换行、助手 Markdown 表格列宽、流式光标、
+  工具行、窄宽度代码块降级都只靠单点断言。本卡补齐，只加测试，零渲染代码改动
+- **交付**：
+  - 新增 `tui/chat/render_golden_test.go`：7 个用例——用户 CJK 换行（40 列）、助手 Markdown
+    表格（60 列，列宽依赖 CJK 口径）、流式思考段（Pending + 空正文降级为 `…`）、流式正文光标
+    （`▊`）、连续工具行（`[1] → grep …`）、窄宽度代码块（36 列降级）、CJK 错误消息换行（40 列）
+  - 新增 `tui/chat/testdata/render_golden.txt`：整段渲染快照（去 ANSI、裁行尾空格，只反映布局）
+  - 沿用 M75 的两条硬约束：每行 `core.VisibleWidth` 不超目标宽度；文件以单换行结尾（避免钩子改写）
+  - 更新入口：`go test ./chat -run TestRenderGoldenTranscript -count=1 -args -update`
+- **取证中确认的行为**（写入用例注释，避免后续误改）：`ThinkingSegments` 只在 `Pending` 时参与
+  光标追加，正文为空时整块降级为 `…`；`CollapseConsecutiveTools` 对已完成的工具行不合并
+- **负控制**：把 golden 中 `[1] → grep 匹配到 12 处` 改为 `匹配 12 处`，测试立即失败；恢复后全绿
+- **发现分级**：P0 0 项；P2 0 项（窄宽度代码块缩进丢失为既有行为，按「取样不改行为」原则原样记录）
+- **门禁**：`go test -race ./chat` 全绿；`golangci-lint run ./chat/...` **0 issues**；
+  `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+  （AGENTS.md / CLAUDE.md 计数同步 1884 = 1236 + 648）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
