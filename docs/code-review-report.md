@@ -75,7 +75,7 @@
 
 5. 未注释导出：✅ 已清零（M40 补 `domains/patent.go` 的 `BuildProjectAgent` 注释），93 → 0。
 6. ~~**`domains/plantask/extension.go` 错误映射过粗**（M37-3 登记）~~ ✅ M42 已修复：新增 `ErrSessionNotFound` 哨兵，仅「未找到」映射为 `ErrNoActiveSession`，IO/权限/解析错误原样上抛（路径原记 `domains/` 有误，实际位于 `agentcore/plantask/`）。
-7. ~~前端 Wails 桥接的 `any`~~ ✅ M71 已收口：`window.runtime` / `window.go` / `window.__mady` 三个全局与 `useAutoScroll` 的 virtualizer 参数共 7 处 `any` 全部消除，全局声明集中到 `src/types/wails.d.ts`（`MadyTestHooks` + `Window` 增强），`listenToWailsEvent` 改为泛型载荷 `T`。剩余 1 处 `AguiEventPayload = any`（`src/agui-bridge/reducer.ts:16`）**登记为后续独立卡**：收敛它需要为 23 类 AGUI 事件建判别联合并改造 30 处字段访问，超出「无行为变化」范围。
+7. ~~前端 Wails 桥接的 `any`~~ ✅ M71 已收口：`window.runtime` / `window.go` / `window.__mady` 三个全局与 `useAutoScroll` 的 virtualizer 参数共 7 处 `any` 全部消除，全局声明集中到 `src/types/wails.d.ts`（`MadyTestHooks` + `Window` 增强），`listenToWailsEvent` 改为泛型载荷 `T`。剩余 1 处 `AguiEventPayload = any` 已由 M72 收口：新增 `src/agui-bridge/payloads.ts` 建立 20 个事件的载荷映射（字段对齐 Go 侧 `json` 标签），`HANDLERS` 改为映射类型使「新增事件忘接线」变成编译错误。**前端 `any` 已归零**。
 8. ~~`tui/` TODO 8 处与裸 fmt 1 处为误报~~ ✅ M40 已修扫描器：TODO 仅识别 `TODO:` / `TODO(owner)` 标注形态（`TODO panel` 名词短语不再计入），OSC 52 剪贴板写入用行内 `// scan-ignore: bare_fmt — <原因>` 显式豁免；tui 两项均归零。
 9. ~~**10 处真实可疑忽略**（M40 口径修正后暴露，建议另开 fix 卡逐条判定是否应传播）~~ ✅ M41 已逐条判定并清零：
    - `domains/case_ext_register.go:43`、`domains/case_ext_sync.go:117`、`:195`——案件已落库/文档已记录，工作区创建失败不回滚整次操作，改为 `slog.Warn`

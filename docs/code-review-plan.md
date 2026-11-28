@@ -177,6 +177,7 @@
 | M64 | 前端拆解卡 6：`SettingsPanel.tsx` 377 行续拆 | AI 服务分区迁 `settings/AIServiceSection`（97），主组件 330 行 | ✅ 2026-11-28 |
 | M65 | 前端拆解卡 7：`SettingsPanel.tsx` 330 行续拆 | 左侧导航迁 `settings/SettingsNav`（51，含分区 ID 类型），主组件 304 行 | ✅ 2026-11-28 |
 | M71 | 阶段 7/8 遗留收口 | 前端 Wails 桥接 `any` 7 → 0（新增 `src/types/wails.d.ts`）；报告长函数 / 大文件拆解 / 事实源数字校正 | ✅ 2026-11-28 |
+| M72 | AGUI 载荷类型收敛 | `AguiEventPayload = any` → 20 个事件的载荷映射（`agui-bridge/payloads.ts`），前端 `any` 归零 | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1413,6 +1414,28 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` **142** 用例全绿（91 + 51）；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
 - **提交**：ffd1de60（refactor）、00979dbc（docs + changelog）
+
+### M72（2026-11-28）AGUI 载荷类型收敛：`AguiEventPayload` 去 `any` ✅
+
+- **范围**：清掉 M71 登记的最后一处前端 `any`（`agui-bridge/reducer.ts` 的 `export type AguiEventPayload = any`）；
+  **纯类型改动，零运行时行为变化**
+- **交付**：
+  - 新增 `desktop/frontend/src/agui-bridge/payloads.ts`：20 个已注册事件的载荷接口
+    （`agent-start` / `message-delta` / `thinking-delta` / `tool-call-*` / `step-*` / `compaction-*` /
+    `auto-retry` / `error` / `a2ui` / `approval-prompt` / `done` / `run-finished` / `context-usage` /
+    `task-created` / `task-updated`），字段与 Go 侧 `agui/types.go` 的 `json` 标签一一对应（全部可选，
+    对齐 `omitempty`）；`AguiEventPayloads` 作为「事件名 → 载荷」唯一映射，`AguiEventPayload` 为其联合类型
+  - `reducer.ts`：每个 `handleXxx` 改为具体载荷类型；`HANDLERS` 改为映射类型
+    `{[K in AguiEventName]: (payload: AguiEventPayloads[K]) => void}` —— **少写一个处理器即编译失败**，
+    把「新增事件忘接线」从运行时静默变成类型错误；分发器签名改为 `(eventName: string, payload: unknown)`，
+    保留原直接查表语义
+  - `client.ts`：`listenToWailsEvent<AguiEventPayload>(...)` 显式泛型，取代回调参数上的 `any` 标注
+  - `handleRunFinished` 的 `TRUNCATION_NOTICES[payload.finishReason]` 补空值收窄（可选字段不可直接索引），
+    行为等价
+- **结果**：前端 `grep ': any|as any|<any>|= any' src` **0 命中**；`tsc --noEmit` 0 error；`eslint src/` 0 issue；
+  `npm test` **142** 用例全绿（91 + 51）
+- **发现分级**：P0 0 项；P2 0 项（`payloads.ts` 的键集合由映射类型强制与 `HANDLERS` 同步）
+- **门禁**：`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（无 Go 改动）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
