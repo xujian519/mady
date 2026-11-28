@@ -11,11 +11,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
-	github.com/signintech/gopdf v0.38.4
+	github.com/signintech/gopdf v0.38.6
 	github.com/sky-valley/pi v1.6.32
 	github.com/xujian519/mady/tui v0.0.0-20260721162033-d76ce4144d96
 	github.com/xuri/excelize/v2 v2.11.0
-	github.com/yuin/goldmark v1.8.6
+	github.com/yuin/goldmark v1.8.7
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.46.0
 	go.opentelemetry.io/otel/sdk v1.47.0

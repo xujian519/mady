@@ -54,7 +54,7 @@ require (
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.49.1 // indirect
-	github.com/signintech/gopdf v0.38.4 // indirect
+	github.com/signintech/gopdf v0.38.6 // indirect
 	github.com/sky-valley/pi v1.6.32 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
@@ -65,7 +65,7 @@ require (
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/excelize/v2 v2.11.0 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
-	github.com/yuin/goldmark v1.8.6 // indirect
+	github.com/yuin/goldmark v1.8.7 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.46.0 // indirect
