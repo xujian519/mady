@@ -188,6 +188,7 @@
 | M75 | TUI 渲染回归取样 | 新增 `tui/component/render_golden_test.go` + golden：7 个工具卡/审批卡整卡输出快照 + 行宽硬约束 | ✅ 2026-11-28 |
 | M76 | TUI 转录渲染取样 | 新增 `tui/chat/render_golden_test.go` + golden：7 个对话转录用例（CJK 换行/表格/流式光标/工具行/代码块/错误） | ✅ 2026-11-28 |
 | M77 | 输入区 + 任务面板取样 | 复用 `component/golden_test.go` 基建：输入区 3 例（占位符/CJK 多行/长折行）+ 任务面板 2 例（四态混合/窄宽截断） | ✅ 2026-11-28 |
+| M78 | 取样约定统一清理 | 删除 M75 重复的 `render_golden_test.go` + `.txt`；独有用例并入 `golden_test.go`；chat 快照改 `.golden` | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1555,6 +1556,23 @@
 - **门禁**：`go vet ./...`（tui 模块）全绿；`golangci-lint run ./tui/component/...` **0 issues**；
   `go test ./component` 与 `go test -race ./component` 全绿；`make doc-check` 通过（Go 文件数不变）
 - **提交**：72c09fda（test）、3bad3891（docs + changelog）
+### M78（2026-11-28）TUI 取样约定统一清理 ✅
+
+- **范围**：M77 登记的 P2——M75 的 `tui/component/render_golden_test.go` 与既有
+  `TestGoldenToolCard` / `TestGoldenApprovalCard` 覆盖重叠，且引入了第二套更新约定
+  （`-args -update` + 手工剥 ANSI/裁行尾空格）。本卡收口：**保留用例价值，消除重复基建**
+- **删除**：`tui/component/render_golden_test.go`（186 行）、`tui/component/testdata/render_golden.txt`
+- **并入**：`golden_test.go` 新增 `TestGoldenToolCardStates`，只补原表未覆盖的三个维度——
+  `tool_card_running_w40`（运行中无结果摘要）、`tool_card_failed_cjk_w40`（错误样式 + 长 CJK 截断）、
+  `tool_card_diff_cjk_w80`（CJK diff 折行）；其余用例与既有表重复，不再保留
+- **改名**：`tui/chat/testdata/render_golden.txt` → `render_golden.golden`，与仓库 `.golden` 命名对齐；
+  chat 包无既有 golden 基建，仍沿用「单文件多段 + `-args -update`」，注释与常量同步更新
+- **效果**：`tui/component` 只剩一套 golden 约定（`GOLDEN_UPDATE=1` + `goldenMatch`），
+  `.golden` 由 pre-commit 豁免行尾空格与 EOF 修正
+- **负控制**：新增的 `tool_card_failed_cjk_w40` 快照中截断省略号存在，改动任一字符即失败（M77 已验证该 helper 生效）
+- **门禁**：`go test -race ./component ./chat` 全绿；`golangci-lint run ./component/... ./chat/...` **0 issues**；
+  `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（AGENTS.md / CLAUDE.md 计数同步
+  1883 = 1236 + 647）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
