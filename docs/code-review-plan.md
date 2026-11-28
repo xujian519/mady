@@ -162,6 +162,7 @@
 | M49 | 大文件拆解卡 2：`example/cli-chat/main.go` 979 行 | 主循环留 main.go，装配/工具/思考/纯函数拆 4 文件，零行为变更 | ✅ 2026-11-28 |
 | M50 | 大文件拆解卡 3：`domains/evidence/statutory.go` 848 行 | 模型与编排留原文件，种类/取得方式贡献拆 2 文件，零行为变更 | ✅ 2026-11-28 |
 | M51 | 大文件拆解卡 4：`domains/figure/generate/dot.go` 822 行 | 类型留原文件，构建/渲染/模板拆 3 文件，零行为变更 | ✅ 2026-11-28 |
+| M52 | 大文件拆解卡 5：`domains/figure/generate/tool.go` 773 行 | 工具入口留原文件，schema/执行渲染/路径解析拆 3 文件 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1177,3 +1178,19 @@
 - **发现分级**：P0 0 项；P2 0 项（本次无孤立注释丢失——切块前已按 M50 教训检查头部）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **提交**：a2ed8a28（refactor）、0aa2d267（docs + changelog）
+
+### M52（2026-11-28）大文件拆解卡 5：`domains/figure/generate/tool.go` ✅
+
+- **范围**：`domains/figure/generate/tool.go` 773 行，包内已有 `tool_test.go`（287 行）等 12 个测试文件作护栏
+- **方法**：纯声明块搬迁；工具定义与入口留原文件，按「入参 schema / 执行渲染 / 路径解析」拆出三个文件
+- **拆分结果**：
+  - `tool.go` 196 行 — `ToolName`、`toolDesc`、`ToolConfig`、`figureTool`、`NewTool`、`toolArgs`、`ToolResult`
+  - `tool_schema.go` 258 行 — 十类图形入参 schema 构造器与 `templateNames`
+  - `tool_run.go` 218 行 — `Run`、`renderVectorFigure`、`renderGraphviz`、`finalizeSVG`、`isVectorKind`、`buildVectorFigure`、`buildOptions`、`buildDOT`
+  - `tool_path.go` 114 行 — `resolveOutput`、`ensureWithin`、`resolveExistingPrefix`、`defaultFont`
+- **等价性验证**：拆分前后 gofmt 行多重集 **717 = 717 零差异**；`go test -count=1 ./domains/figure/generate/` 通过
+- **事故与恢复（登记）**：切块脚本复制自 M51 时未改输出字典的初始键（仍是 `dot.go`），首轮把 `tool.go` 的头部误写进 `dot.go`，导致 `dot.go` 被截为 14 行。**已用 `git checkout -- domains/figure/generate/dot.go` 完整恢复**（该文件已在 M51 提交，零损失），并从备份重跑切分。教训：切块脚本必须以「源文件同名」为初始输出键，且运行前确认目标文件已被 git 跟踪（可回滚）
+- **指标**：非测试源文件 1232 → 1235（+3）；`long_funcs` 35 不变；其余指标不变，`metrics-trend` 通过；`AGENTS.md` 计数由 `doc-check --update` 同步
+- **发现分级**：P0 0 项；P2 1 项（切块脚本初始输出键，已修复并记录）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **提交**：待回填
