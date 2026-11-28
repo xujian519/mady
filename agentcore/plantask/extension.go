@@ -2,6 +2,7 @@ package plantask
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -153,15 +154,18 @@ func (e *Extension) sessionID(caseID string) string {
 	return fmt.Sprintf("%s_%d", caseID, time.Now().UnixNano())
 }
 
-// loadSession 按 ID 加载会话，统一错误映射。
+// loadSession 按 ID 加载会话：仅「未找到」映射为 ErrNoActiveSession，
+// 其余读取失败（IO/权限/解析）原样上抛，避免掩盖真实原因。
 func (e *Extension) loadSession(_ context.Context, id string) (*PlanTaskSession, error) {
 	if id == "" {
 		return nil, ErrNoActiveSession
 	}
 	s, err := e.cfg.Store.Load(context.Background(), id)
 	if err != nil {
-		// 加载失败→统一映射为 ErrNoActiveSession（未找到与读取失败同归，调用方按无会话处理）。
-		return nil, ErrNoActiveSession
+		if errors.Is(err, ErrSessionNotFound) {
+			return nil, ErrNoActiveSession
+		}
+		return nil, err
 	}
 	return s, nil
 }

@@ -66,9 +66,9 @@ func (f *FileStore) Load(_ context.Context, id string) (*PlanTaskSession, error)
 	defer f.mu.Unlock()
 	data, err := os.ReadFile(f.path(id))
 	if err != nil {
-		// 「不存在」转为 not found 错误，其余 IO 错误带原因上抛，二者不混淆。
+		// 「不存在」包装 ErrSessionNotFound，其余 IO 错误带原因上抛，二者不混淆。
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("plantask: session %q not found", id)
+			return nil, fmt.Errorf("plantask: session %q: %w", id, ErrSessionNotFound)
 		}
 		return nil, fmt.Errorf("plantask: read session %q: %w", id, err)
 	}

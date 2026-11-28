@@ -46,6 +46,9 @@ func (s Status) String() string { return string(s) }
 var (
 	// ErrNoActiveSession 工具调用时无匹配会话（ID 错误或已 Finished）。
 	ErrNoActiveSession = errors.New("plantask: no active session")
+	// ErrSessionNotFound 持久层未找到指定会话（区别于 IO/权限等读取失败）。
+	// Store 实现在「不存在」时以 %w 包装本错误，供上层与读取失败区分。
+	ErrSessionNotFound = errors.New("plantask: session not found")
 	// ErrInvalidTransition 状态迁移不在白名单内。
 	ErrInvalidTransition = errors.New("plantask: invalid state transition")
 	// ErrSessionExpired 会话已超时。

@@ -49,7 +49,7 @@ func (m *MemoryStore) Load(_ context.Context, id string) (*PlanTaskSession, erro
 	defer m.mu.Unlock()
 	s, ok := m.sessions[id]
 	if !ok {
-		return nil, fmt.Errorf("plantask: session %q not found", id)
+		return nil, fmt.Errorf("plantask: session %q: %w", id, ErrSessionNotFound)
 	}
 	return s.Clone(), nil
 }

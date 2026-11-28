@@ -234,6 +234,32 @@ func TestNoActiveSession(t *testing.T) {
 	}
 }
 
+// errLoadStore 将 Load 固定返回指定错误，其余方法委托给嵌入的 Store。
+type errLoadStore struct {
+	Store
+	err error
+}
+
+func (s errLoadStore) Load(context.Context, string) (*PlanTaskSession, error) {
+	return nil, s.err
+}
+
+// TestLoadSession_IOErrorPropagates 验证非「未找到」的读取错误原样上抛，
+// 不再被统一映射为 ErrNoActiveSession（避免掩盖 IO/权限问题）。
+func TestLoadSession_IOErrorPropagates(t *testing.T) {
+	ioErr := errors.New("disk read failure")
+	ext, _, _ := newTestExtension(t)
+	ext.cfg.Store = errLoadStore{Store: ext.cfg.Store, err: ioErr}
+
+	_, err := ext.Session(context.Background(), "sess-1")
+	if !errors.Is(err, ioErr) {
+		t.Errorf("expected raw IO error, got %v", err)
+	}
+	if errors.Is(err, ErrNoActiveSession) {
+		t.Error("IO error must not be mapped to ErrNoActiveSession")
+	}
+}
+
 // TestStatusChangedEvent 验证状态迁移事件发射。
 func TestStatusChangedEvent(t *testing.T) {
 	ext, _, _ := newTestExtension(t)
