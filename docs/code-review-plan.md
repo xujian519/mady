@@ -183,6 +183,7 @@
 | M65 | 前端拆解卡 7：`SettingsPanel.tsx` 330 行续拆 | 左侧导航迁 `settings/SettingsNav`（51，含分区 ID 类型），主组件 304 行 | ✅ 2026-11-28 |
 | M71 | 阶段 7/8 遗留收口 | 前端 Wails 桥接 `any` 7 → 0（新增 `src/types/wails.d.ts`）；报告长函数 / 大文件拆解 / 事实源数字校正 | ✅ 2026-11-28 |
 | M72 | AGUI 载荷类型收敛 | `AguiEventPayload = any` → 20 个事件的载荷映射（`agui-bridge/payloads.ts`），前端 `any` 归零 | ✅ 2026-11-28 |
+| M73 | 跨语言事件名契约护栏 | 新增 `desktop/agui_wails_contract_test.go`：后端映射表 ↔ 前端订阅/处理器/载荷三处键集合自动比对 | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1442,6 +1443,24 @@
 - **发现分级**：P0 0 项；P2 0 项（`payloads.ts` 的键集合由映射类型强制与 `HANDLERS` 同步）
 - **门禁**：`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（无 Go 改动）
 - **提交**：986d704f（refactor）、b01cf1e3（docs + changelog）
+### M73（2026-11-28）跨语言事件名契约护栏 ✅
+
+- **范围**：M72 之后「Go 侧事件名 ↔ 前端三处登记」仍无编译期约束，改名只会表现为前端静默收不到事件。
+  本卡补一条跨语言契约测试，**只加测试，零生产代码改动**
+- **交付**：新增 `desktop/agui_wails_contract_test.go`（`//go:build darwin`，package main）
+  - 从 Go 侧推导后端可产出的 `agui:*` 事件名：`mapAguiEventToWailsName` 实跑 16 个代表事件
+    （6 类显式分支 + `run-finished`/`step-*`/`tool-call-args`/`tool-call-result`/`context-usage` 走
+    `kebab(EventType)` + 4 个 `CustomEvent` 名）→ 再补 3 个由 `agentcore.EventType` 直接 kebab 的
+    `approval-prompt`/`task-created`/`task-updated`，以及 `app_chat.go` 直发的 `done`
+    （后者通过读源码断言 `"agui:done"` 字面量仍存在）
+  - 解析前端三个登记块并做**双向集合比对**：`client.ts` 的 `SUBSCRIBED_EVENTS`、
+    `reducer.ts` 的 `HANDLERS` 键、`payloads.ts` 的 `AguiEventPayloads` 键；
+    「后端可产出但前端未登记」与「前端登记了后端不会产出」分别报错
+- **负控制**：临时把 `client.ts` 的 `'auto-retry'` 改为 `'auto-retry-typo'`，测试双向上报
+  （缺 `auto-retry` + 多 `auto-retry-typo`），改回即恢复全绿，证明护栏有效
+- **发现分级**：P0 0 项；P2 0 项（未发现既有漂移，说明 M72 落地后两侧已一致）
+- **门禁**：`cd desktop && go build ./... && go vet ./...` 全绿；`go test -race ./...`（desktop 模块）全绿；
+  `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（AGENTS.md 计数同步 1881 = 1236 + 645）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 

@@ -288,6 +288,7 @@ event: done\ndata: <StreamDoneEvent JSON>\n\n
 | `mcp/contract_test.go` | 11 个 RPC 名（假服务端记录 `method`）、5 个事件名 | `TestContractMCPRPCMethods` |
 | `mcp/extension_snapshot_test.go` | `SnapshotEvents` 的 `transport` 取值、5 事件 `EventKind`/`EventTime` | `TestExtensionSnapshotEvents` |
 | `bootstrap/plantask_bridge_test.go` | `Replan` 闭环与任务同步顺序 | `TestPlantaskBridgeKeepsCompletedStep` |
+| `desktop/agui_wails_contract_test.go` | 跨语言：Go 映射表 ↔ 前端 `SUBSCRIBED_EVENTS` / `HANDLERS` / `AguiEventPayloads` 三处键集合双向一致 | `TestWailsEventNamesMatchFrontend` |
 
 运行全部契约护栏：
 
