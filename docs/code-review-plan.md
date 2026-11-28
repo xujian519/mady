@@ -1486,3 +1486,4 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./agui/... ./server/...` **0 issues**；
   `go test -race ./agui` 全绿；`go test -race ./...` 仅剩预存失败 `knowledge/sqlite TestSearchLaws`；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+- **提交**：738015e7（refactor）、c446d1a7（docs + changelog + 指标基线）
