@@ -174,6 +174,7 @@
 | M61 | 前端拆解卡 4：`chat/Composer.tsx` 473 行 | 草稿/历史持久化与本地命令拦截迁 `chat/composer/`，主组件 391 行 | ✅ 2026-11-28 |
 | M62 | 前端拆解卡 5：`SettingsPanel.tsx` 448 行 | 外观与关于分区迁 `settings/`（59 + 81），主组件 377 行 | ✅ 2026-11-28 |
 | M63 | 依赖升级卡：Go 根模块 6 项 + 前端 26 项 | 同主版本 patch/minor；chromedp/onnxruntime 暂缓；补 dependabot npm 覆盖 | ✅ 2026-11-28 |
+| M64 | 前端拆解卡 6：`SettingsPanel.tsx` 377 行续拆 | AI 服务分区迁 `settings/AIServiceSection`（97），主组件 330 行 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1341,3 +1342,15 @@
 - **门禁**：`go build ./...` + `go vet ./...` 三模块全绿；`golangci-lint run ./...` 0 issues；`go test -race ./...` 唯一失败仍为预存 `knowledge/sqlite TestSearchLaws`（缺本机 `~/.mady/knowledge/laws-full.db`）；`go mod tidy -diff` 三模块无差异；前端 `pnpm typecheck` 0 error、`pnpm lint` 0 issue、`pnpm test` 91 + 51 全绿、`pnpm build` 成功
 - **发现分级**：P0 0 项；P3 1 项（本机 pnpm store 版本错配：`node_modules` 链接自 `store/v11`，pnpm 10.33.4 期望 `store/v11/v10`，`pnpm update` 直接报 `ERR_PNPM_UNEXPECTED_STORE`；以 `pnpm install --force` 重链后完成升级，属环境性问题、不入库）
 - **提交**：7470f271（deps go）、208ae09b（deps desktop）、8a9ee13d（ci + docs）
+
+### M64（2026-11-28）前端拆解卡 6：`SettingsPanel.tsx` 续拆 ✅
+
+- **范围**：`src/components/SettingsPanel.tsx` 377 行（M62 拆分后仍内联「AI 服务」分区 JSX）
+- **拆分口径**：把最后一个内联分区迁为纯展示组件，状态与请求编排留在主组件
+  - `settings/AIServiceSection.tsx`（97 行）— 默认 Provider / 默认模型两个输入 + 「切换仅对新建会话生效」提示 + 保存按钮，props `{ provider, model, saving, dirty, onProviderChange, onModelChange, onSave }`
+- **保留在主组件**：`provider/model/saving/toast` 状态、`aiDirty` 判定、`handleSaveAI`（`setAISettings` + store 同步 + Toast）、导航分区表、焦点圈定、Toast 渲染
+- **等价性验证**：注释与 import 归一后行多重集 309 → 339，差异全部可解释——旧有 5 行为内联闭包与阈值表达式（`onChange={…setProvider}`、`onClick={handleSaveAI}`、`disabled={!aiDirty || saving}`、`${aiDirty && !saving`）改为 props 与 `dirty` 变量；新增为 props 传参、`interface AIServiceSectionProps` 声明与组件包装行；分区内 JSX 结构与类名逐字未变
+- **护栏**：M59 的 5 例 SettingsPanel 组件测试原样通过（含「关于区 9.9.9」「点深色触发 setMode」）
+- **门禁**：`pnpm typecheck` 0 error；`pnpm lint` 0 issue；`pnpm test` 91 + 51 全绿；`pnpm build` 成功
+- **发现分级**：P0 0 项；P3 0 项（`Cpu` 图标随分区迁出后成为主组件未使用导入，已在同一次改动内移除）
+- **提交**：待回填
