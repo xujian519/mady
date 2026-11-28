@@ -167,6 +167,7 @@
 | M54 | 前端护栏卡：`ProjectTree.tsx` / `ChatView.tsx` 拆解前补特征测试 | 新增 22 例（组件 5 + 纯函数 17），前端用例 105 → 127 | ✅ 2026-11-28 |
 | M55 | 前端拆解卡 1：`ProjectTree.tsx` 879 行 | 主组件留原文件，纯逻辑与行组件拆 2 模块，零行为变更 | ✅ 2026-11-28 |
 | M56 | 前端拆解卡 2：`ChatView.tsx` 822 行 | 虚拟列表纯函数迁 `chat/transcript.ts`，17 例测试随之迁移 | ✅ 2026-11-28 |
+| M57 | 前端护栏卡 2：`ChatView` 组件级测试 | 新增 4 例（空态/消息/流式/错误），前端用例 127 → 131 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1248,3 +1249,13 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例
 - **发现分级**：P0 0 项；P2 1 项（拆分后主组件里 `Message`/`ToolCall`/`CompactionNotice`/`RetryNotice` 类型导入变为未使用，已清理并改为从 `transcript` 导入所需函数）
 - **提交**：caa3b7eb（refactor）、f5c75524（docs + changelog）
+
+### M57（2026-11-28）前端护栏卡 2：`ChatView` 组件级测试 ✅
+
+- **取证**：M54/M56 已覆盖 ChatView 的纯函数（17 例），但**组件级行为无护栏**——空态引导、消息气泡、流式输出、错误提示四条主路径均未断言
+- **方法**：重依赖全部替身化——`pdfjs-dist`、`@tanstack/react-virtual`（jsdom 无布局尺寸，替换为「全部条目可见」的假虚拟化器）、`@/lib/backend`、`@/lib/wails`、`@/lib/sessionExport`，以及 17 个子组件（Sidebar/TabBar/各面板等）；`MessageBubble` 用可断言的轻量替身
+- **交付**：`src/components/chat/__tests__/ChatView.render.test.tsx`（4 例）——空态显示「开始新对话」与三条快捷引导；有消息时渲染气泡且空态消失；流式输出以 `isStreaming` 独立渲染；`error` 状态直接展示错误文本
+- **隔离措施**：每例前后用 `useChatStore.setState(getInitialState(), true)` 重置 store，避免用例串扰
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 40 例（36 + 4）
+- **发现分级**：P0 0 项；P2 0 项
+- **提交**：待回填
