@@ -158,6 +158,7 @@
 | M45 | 长函数拆解清单卡（>120 行登记，不拆代码） | 新增 `docs/code-health/long-function-inventory.md`；扫描器 `--list-long-funcs` + off-by-one 修正 | ✅ 2026-11-28 |
 | M46 | 指标趋势看板卡（终审指标固化为 CI 门禁） | 新增 `metrics-baseline.json` + `check_metrics_trend.py`；`make metrics-trend` / CI job / 3 个负控制用例 | ✅ 2026-11-28 |
 | M47 | 大文件拆解卡 1：`domains/figure/generate/check.go` 981 行 | 纯声明块搬迁为 4 文件（174/489/213/123），零行为变更 | ✅ 2026-11-28 |
+| M48 | 护栏卡：example/ + evaluate/ 拆解前补特征测试 | 新增 2 个测试文件（CLI 纯函数 7 组、数据集 15 条体检） | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1112,3 +1113,16 @@
 - **发现分级**：P0 0 项；P2 1 项（上述注释丢失，已修复并记录方法）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **提交**：89785231（refactor）、3a28c9c8（docs + changelog）
+
+### M48（2026-11-28）护栏卡：example/ + evaluate/ 拆解前补特征测试 ✅
+
+- **范围**：下一批大文件候选 `example/cli-chat/main.go` 970 行、`evaluate/benchmark/patent_exam_real_a22.go` 619 行——两者在拆分前的测试护栏几乎为零
+- **取证**：`example/cli-chat` 无任何 `_test.go`；`evaluate/benchmark` 虽有 `TestEvalSuite_CaseIntegrity`，但它只查「空字段 / 重复 ID」，**整条用例丢失仍会通过**（拆分数据文件时正是这种失效）
+- **交付**：
+  - `example/cli-chat/main_test.go`：7 组特征测试钉住纯函数行为——`parsePathListEnv` / `parseListEnv`（空值、空白、空段）、`defaultModel`（三家厂商 + 回退）、`cloneThinkingConfig` / `compactThinkingConfig` / `formatThinkingConfig`、`parseThinkingCommand`（15 个用例覆盖 on/off/effort/budget/include/reset 与 5 类错误）、`chatMessageFromAgentMessage`（角色映射 + 工具调用占位）、`weatherTool` / `calculatorTool`（正常与非法 JSON）
+  - `evaluate/benchmark/patent_exam_real_a22_test.go`：数据集体检——**精确 15 条** + ID 形态（`patent_exam_<年份>_a22_<序号>`）+ `Domain=="patent"` + Input/Expected 非空 + ID 唯一
+- **覆盖率**（非目标，仅记录）：`example/cli-chat` 22.3%（交互主循环无法脱离终端测试，故只锁纯函数）；`evaluate/benchmark` 56.7%
+- **指标**：Go 测试文件 632 → 634；非测试源文件与其余指标不变（`metrics-trend` 通过）
+- **发现分级**：P0 0 项；P2 1 项（数据集缺条数约束，本卡补上）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **提交**：待回填
