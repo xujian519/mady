@@ -47,6 +47,7 @@
 - **阶段 5 工具/入口（M28–M31）**：tools 三大族（browser / desktop / 内置工具）与 `cmd/mady`；`inputSchema` 零改动。
 - **阶段 6 端/测试/脚本（M32–M36）**：evaluate / example / integration / scripts；`tui/` 基础层与应用层；`desktop/` Go 后端与 React 前端；本报告。
 - **阶段 7 专项收敛（M37-1～M37-6、M38、M39、M40、M41）**：按本报告遗留清单分 6 批处理静默吞错（domains / 协议面 / 内核 / tools / cmd / 周边目录），共 307 处站点，逐处判定「有意降级（补意图注释）」或「疑似漏错（不改代码、登记）」；M38 单独修 `tui/` 宽字符渲染口径，收口 17 个预存失败用例；M39 收敛被忽略 error 23 → 8，M40 修正扫描口径并补导出注释，M41 将 10 处可疑忽略逐条判定清零。
+- **阶段 9 协议面专项（M66–M70）**：阶段 4 对协议面只做了注释治理、未建契约护栏，故单独立项。M66 已完成契约基线取证（`docs/code-health/protocol-contract-baseline.md`：七层帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / instrumentation + 实测覆盖矩阵，`bootstrap` 3.4% 为最弱）；M67 golden fixture、M68 `agui/converter.go` 内部重构、M69 `mcp` + `bootstrap` 补测、M70 协议文档与变更流程待执行。
 
 ## 四、未达成指标的原因分析
 
@@ -120,3 +121,4 @@ git diff --stat                                  # deletions 必须为 0，新�
 4. 大文件拆解另立计划（需行为等价重构 + 完整测试护栏），不建议并入保守档。
 5. ~~把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）~~ ✅ M46 已完成：基线单源 `docs/code-health/metrics-baseline.json`，`scripts/check_metrics_trend.py` 高于基线即失败、低于基线可棘轮下压、基线缺失 fail-closed；接入 `make verify` 与 CI `metrics-trend` job，并有 3 个红绿负控制用例（`scripts/gatechecks/`）。
 6. ~~依赖升级另立一卡~~ ✅ M63 已完成：Go 根模块 6 项直接依赖升到同主版本最新 patch/minor，前端 26 项在 semver 范围内升级，三模块与前端门禁全绿；`chromedp`（0.x minor 破坏性区间）与 `onnxruntime_purego`（与本地原生库耦合）登记暂缓，大版本迁移（React 19 / vite 8 / vitest 5 / TS 7）不在本轮范围。同时补齐 `.github/dependabot.yml` 的前端 `npm` 生态条目——此前只有根模块 gomod 被每周扫描。
+7. **协议面契约无护栏** → 阶段 9 立项（M66–M70）。M66 完成七层契约基线取证；M67 起把事件类型、JSON-RPC 方法、错误码、SSE/WS 帧固化为 golden fixture，任何契约漂移测试即红；M70 补齐按层协议文档与契约变更流程。协议层内部重构（M68）与弱覆盖补测（M69）不得改变任何帧结构。

@@ -177,6 +177,25 @@
 | M64 | 前端拆解卡 6：`SettingsPanel.tsx` 377 行续拆 | AI 服务分区迁 `settings/AIServiceSection`（97），主组件 330 行 | ✅ 2026-11-28 |
 | M65 | 前端拆解卡 7：`SettingsPanel.tsx` 330 行续拆 | 左侧导航迁 `settings/SettingsNav`（51，含分区 ID 类型），主组件 304 行 | ✅ 2026-11-28 |
 
+### 阶段 9 — 协议面专项
+
+> 触发：阶段 4（M23–M27）对协议面采用「零改动」红线，只做了吞错注释与审阅记录，未建立契约护栏。
+> 本阶段单独立项，口径仍是**只允许内部重构**——帧结构 / JSON 字段名 / 事件类型 / 错误码 /
+> 工具 `inputSchema` 一律零改动；任何契约变更必须走 M70 定义的变更流程，不得混入本阶段提交。
+>
+> 范围（七层）：`a2a/` 26 源 / `a2ui/` 14 源 / `agui/` 6 源 / `acp/` 16 源 / `server/` 16 源 /
+> `mcp/` 25 源 / `bootstrap/` 16 源，合计 119 源文件 + 42 测试文件、40,442 行。
+> 已知薄弱点（实测语句覆盖率）：`bootstrap/` 3.4%、`a2a/` 50.2%、`server/` 57.2%、`acp/` 58.3%；
+> `mcp/` 72.1% 但 25 源仅 5 测试文件。
+
+| 卡 | 模块 | 规模/口径 | 状态 |
+| --- | --- | --- | --- |
+| M66 | 协议契约基线（取证卡，不改代码） | 七层契约面盘点：帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / 工具 schema / instrumentation + 测试覆盖矩阵，产出 `docs/code-health/protocol-contract-baseline.md` | ✅ 2026-11-28 |
+| M67 | 协议护栏：golden fixture 卡 | 把 M66 契约固化为失败即红的测试（AGUI 事件序列、A2A JSON-RPC 方法/错误码、A2UI envelope、ACP session 通知、server SSE 事件名、MCP 方法集） | ⬜ |
+| M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ⬜ |
+| M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ⬜ |
+| M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ⬜ |
+
 
 ## 六、基线（2026-08-25 实测）
 
@@ -1368,3 +1387,29 @@
 - **发现分级**：P0 0 项；P3 0 项
 - **拆解收尾（用户确认）**：本卡为 `SettingsPanel.tsx` 拆解终点。三次拆分 448 行（M62 前）→ 377（M62）→ 330（M64）→ 304（M65）；剩余 304 行是同一关注点内部的状态/effects/handlers 与 JSX 外壳，继续拆分会把单个组件的职责切散、增加 props 穿透，不再继续。
 - **提交**：a64ba714（refactor）、8cd13df1（docs + changelog）
+
+### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
+
+- **范围**：阶段 9 第一卡，取证为主、**零代码改动**。七层合计 119 源 + 42 测试、40,442 行
+- **方法**：不读全量源码，按「契约权威源」定向取证——枚举常量（`EventType` / `TaskState` / 错误码）、
+  结构体 `json` 标签、方法分发 `switch`、路由注册表、SSE 写出点；再用 `go test -cover` 取实测覆盖率
+- **交付**：新增 `docs/code-health/protocol-contract-baseline.md`
+  - 六类契约面定义（帧结构 / JSON 字段名 / 事件类型 / 错误码 / 工具 `inputSchema` / instrumentation）
+  - 逐层契约：A2A（5 端点、8 RPC + 8 WS 方法、6 任务态、11 错误码、SSE `id/data` 无 `event` 行）、
+    A2UI（v0.9.1、四信封、JSONL、AGUI CUSTOM `name=a2ui`）、AGUI（23 事件、毫秒时间戳、
+    `event: TYPE` 帧、`msg_<n>`/`thinking_<n>` ID 规则）、ACP（11 方法、7 错误码、stdio 行分隔）、
+    server（30+ 路由含 `/api/v1` 双注册、SSE 事件名 = agentcore `EventType` 字符串、4 个响应头）、
+    MCP（11 RPC 名、3 传输、信任边界）、bootstrap（非线协议，装配顺序隐式契约）
+  - instrumentation 清单：expvar 13 个指标名、4 个响应头、`MADY_TRACING`；明确其余五层不自带指标
+  - 卡片映射：M67 fixture 清单 / M68 重构护栏 / M69 补测依据 / M70 文档输入
+  - 取证命令附录（规模 / 覆盖率 / 枚举可复现）
+- **覆盖矩阵实测**：`a2ui` 99.6% > `agui` 78.5% > `mcp` 72.1% > `acp` 58.3% > `server` 57.2% >
+  `a2a` 50.2% > `bootstrap` **3.4%**（`bootstrap/agentconfig` 46.2%）
+- **计划调整**：M69 原定「mcp + bootstrap」依据薄弱点确认保留；`a2a` / `server` / `acp` 中与契约
+  直接相关的部分交由 M67 fixture 覆盖，不重复补测，避免为覆盖率而写空断言
+- **发现分级**：P0 0 项；P2 1 项（`bootstrap` 主包 3.4% 覆盖，仅 1 个测试文件触达 9 个源文件，M69 处理）；
+  P3 1 项（A2A SSE 无 `event:` 行，与 AGUI/server 帧格式不同，M67 必须分三套 fixture，不可共用解析器）
+- **门禁**：无 Go 代码改动；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；
+  `go test -cover` 七层全通过（无失败包）；`make doc-check check-arch verify-layers debt-check metrics-trend` 通过
+  （指标零变化：root 0/0/0/0/35/3、tui 0/0/0/0/10/0、desktop 全 0）
+- **提交**：（本卡为纯文档卡，见下条哈希回填）

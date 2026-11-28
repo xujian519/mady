@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-11-28T17:48:50+08:00",
-  "total": 550,
+  "updated": "2026-11-28T17:55:15+08:00",
+  "total": 551,
   "entries": [
     {
       "date": "2026-11-28",
@@ -196,12 +196,12 @@
       "line": 380
     },
     {
-      "date": "2026-11-13",
+      "date": "2026-11-28",
       "type": "docs",
       "scope": "review",
-      "title": "终审报告同步阶段 7 终态与遗留清单",
-      "file": "2026-11-13.md",
-      "line": 180
+      "title": "M66 协议契约基线取证",
+      "file": "2026-11-28.md",
+      "line": 394
     },
     {
       "date": "2026-11-13",
@@ -284,12 +284,12 @@
       "line": 203
     },
     {
-      "date": "2026-11-12",
-      "type": "refactor",
-      "scope": "desktop",
-      "title": "M35 desktop/ Go 后端审阅：补 23 处静默吞错意图注释",
-      "file": "2026-11-12.md",
-      "line": 208
+      "date": "2026-11-13",
+      "type": "docs",
+      "scope": "review",
+      "title": "终审报告同步阶段 7 终态与遗留清单",
+      "file": "2026-11-13.md",
+      "line": 180
     },
     {
       "date": "2026-11-12",
@@ -380,12 +380,12 @@
       "line": 93
     },
     {
-      "date": "2026-11-11",
+      "date": "2026-11-12",
       "type": "refactor",
-      "scope": "infra",
-      "title": "M22 日卡精炼：基础设施层静默降级意图注释",
-      "file": "2026-11-11.md",
-      "line": 33
+      "scope": "desktop",
+      "title": "M35 desktop/ Go 后端审阅：补 23 处静默吞错意图注释",
+      "file": "2026-11-12.md",
+      "line": 208
     },
     {
       "date": "2026-11-11",
@@ -412,12 +412,12 @@
       "line": 19
     },
     {
-      "date": "2026-11-01",
-      "type": "fix",
-      "scope": "domains/teams",
-      "title": "修复团队调度公平性：单成员不再独占全部任务",
-      "file": "2026-11-01.md",
-      "line": 3
+      "date": "2026-11-11",
+      "type": "refactor",
+      "scope": "infra",
+      "title": "M22 日卡精炼：基础设施层静默降级意图注释",
+      "file": "2026-11-11.md",
+      "line": 33
     },
     {
       "date": "2026-11-01",
@@ -428,12 +428,12 @@
       "line": 14
     },
     {
-      "date": "2026-10-28",
-      "type": "feat",
-      "scope": "domains",
-      "title": "批 B 接入 11 条 warn 级规则，门禁累计 107 条",
-      "file": "2026-10-28.md",
-      "line": 141
+      "date": "2026-11-01",
+      "type": "fix",
+      "scope": "domains/teams",
+      "title": "修复团队调度公平性：单成员不再独占全部任务",
+      "file": "2026-11-01.md",
+      "line": 3
     },
     {
       "date": "2026-10-28",
@@ -652,12 +652,12 @@
       "line": 124
     },
     {
-      "date": "2026-10-25",
-      "type": "fix",
-      "scope": "provider",
-      "title": "供应商错误信息统一脱敏凭证",
-      "file": "2026-10-25.md",
-      "line": 210
+      "date": "2026-10-28",
+      "type": "feat",
+      "scope": "domains",
+      "title": "批 B 接入 11 条 warn 级规则，门禁累计 107 条",
+      "file": "2026-10-28.md",
+      "line": 141
     },
     {
       "date": "2026-10-25",
@@ -788,12 +788,12 @@
       "line": 193
     },
     {
-      "date": "2026-10-22",
+      "date": "2026-10-25",
       "type": "fix",
-      "scope": "disclosure",
-      "title": "batch 模式新颖性评估校验引用证据 ID",
-      "file": "2026-10-22.md",
-      "line": 15
+      "scope": "provider",
+      "title": "供应商错误信息统一脱敏凭证",
+      "file": "2026-10-25.md",
+      "line": 210
     },
     {
       "date": "2026-10-22",
@@ -820,12 +820,12 @@
       "line": 3
     },
     {
-      "date": "2026-10-21",
+      "date": "2026-10-22",
       "type": "fix",
-      "scope": "retrieval",
-      "title": "消除嵌入维度缓存的数据竞争",
-      "file": "2026-10-21.md",
-      "line": 149
+      "scope": "disclosure",
+      "title": "batch 模式新颖性评估校验引用证据 ID",
+      "file": "2026-10-22.md",
+      "line": 15
     },
     {
       "date": "2026-10-21",
@@ -940,12 +940,12 @@
       "line": 134
     },
     {
-      "date": "2026-10-18",
+      "date": "2026-10-21",
       "type": "fix",
-      "scope": "domains",
-      "title": "P0 修复：SQLite 时间列格式统一、审计参数扫描越界、工具入参静默吞错",
-      "file": "2026-10-18.md",
-      "line": 20
+      "scope": "retrieval",
+      "title": "消除嵌入维度缓存的数据竞争",
+      "file": "2026-10-21.md",
+      "line": 149
     },
     {
       "date": "2026-10-18",
@@ -962,6 +962,14 @@
       "title": "M14/M15 日卡：domains 写作/模板/根包/存储层行为不变精炼",
       "file": "2026-10-18.md",
       "line": 3
+    },
+    {
+      "date": "2026-10-18",
+      "type": "fix",
+      "scope": "domains",
+      "title": "P0 修复：SQLite 时间列格式统一、审计参数扫描越界、工具入参静默吞错",
+      "file": "2026-10-18.md",
+      "line": 20
     },
     {
       "date": "2026-09-14",
@@ -986,14 +994,6 @@
       "title": "M13 日卡：domains/rules + reasoning 审阅精炼（保守档）",
       "file": "2026-09-06.md",
       "line": 3
-    },
-    {
-      "date": "2026-09-01",
-      "type": "fix",
-      "scope": "agentcore",
-      "title": "EventBus unregister 同步等待 in-flight 回调（修复 server 流式 SSE 数据竞争）",
-      "file": "2026-09-01.md",
-      "line": 63
     },
     {
       "date": "2026-09-01",
@@ -1036,12 +1036,12 @@
       "line": 50
     },
     {
-      "date": "2026-08-28",
+      "date": "2026-09-01",
       "type": "fix",
-      "scope": "domains",
-      "title": "brooks-review 评审修复：offload 回读通道、装配层测试锁定、重复实现收敛",
-      "file": "2026-08-28.md",
-      "line": 256
+      "scope": "agentcore",
+      "title": "EventBus unregister 同步等待 in-flight 回调（修复 server 流式 SSE 数据竞争）",
+      "file": "2026-09-01.md",
+      "line": 63
     },
     {
       "date": "2026-08-28",
@@ -1188,12 +1188,12 @@
       "line": 140
     },
     {
-      "date": "2026-08-27",
-      "type": "refactor",
-      "scope": "claimdrafting",
-      "title": "日卡 M06：claimdrafting/config 审阅精炼",
-      "file": "2026-08-27.md",
-      "line": 15
+      "date": "2026-08-28",
+      "type": "fix",
+      "scope": "domains",
+      "title": "brooks-review 评审修复：offload 回读通道、装配层测试锁定、重复实现收敛",
+      "file": "2026-08-28.md",
+      "line": 256
     },
     {
       "date": "2026-08-27",
@@ -1204,12 +1204,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-26",
+      "date": "2026-08-27",
       "type": "refactor",
-      "scope": "graph",
-      "title": "日卡 M03：graph/ 包审阅精炼",
-      "file": "2026-08-26.md",
-      "line": 18
+      "scope": "claimdrafting",
+      "title": "日卡 M06：claimdrafting/config 审阅精炼",
+      "file": "2026-08-27.md",
+      "line": 15
     },
     {
       "date": "2026-08-26",
@@ -1236,12 +1236,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-25",
+      "date": "2026-08-26",
       "type": "refactor",
-      "scope": "agentcore",
-      "title": "收敛重复逻辑与死分支",
-      "file": "2026-08-25.md",
-      "line": 16
+      "scope": "graph",
+      "title": "日卡 M03：graph/ 包审阅精炼",
+      "file": "2026-08-26.md",
+      "line": 18
     },
     {
       "date": "2026-08-25",
@@ -1268,12 +1268,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-24",
-      "type": "feat",
-      "scope": "knowledge",
-      "title": "阶段1：知识底座集成——兼容 XiaoNuo SQLite/schema、扩展 Wiki Loader、引入 XiaoNuo 规则资产",
-      "file": "2026-08-24.md",
-      "line": 7
+      "date": "2026-08-25",
+      "type": "refactor",
+      "scope": "agentcore",
+      "title": "收敛重复逻辑与死分支",
+      "file": "2026-08-25.md",
+      "line": 16
     },
     {
       "date": "2026-08-24",
@@ -1428,12 +1428,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-23",
+      "date": "2026-08-24",
       "type": "feat",
-      "scope": "ci",
-      "title": "tone 词表门禁上线（精化词表 + 限定目录扫描 + 负控制自测）",
-      "file": "2026-08-23.md",
-      "line": 17
+      "scope": "knowledge",
+      "title": "阶段1：知识底座集成——兼容 XiaoNuo SQLite/schema、扩展 Wiki Loader、引入 XiaoNuo 规则资产",
+      "file": "2026-08-24.md",
+      "line": 7
     },
     {
       "date": "2026-08-23",
@@ -1444,12 +1444,12 @@
       "line": 3
     },
     {
-      "date": "2026-08-22",
-      "type": "fix",
+      "date": "2026-08-23",
+      "type": "feat",
       "scope": "ci",
-      "title": "修复 submodules lint 步骤重复 run 子命令导致的 CI 失败",
-      "file": "2026-08-22.md",
-      "line": 36
+      "title": "tone 词表门禁上线（精化词表 + 限定目录扫描 + 负控制自测）",
+      "file": "2026-08-23.md",
+      "line": 17
     },
     {
       "date": "2026-08-22",
@@ -1484,12 +1484,12 @@
       "line": 23
     },
     {
-      "date": "2026-08-19",
-      "type": "docs",
-      "scope": "specs",
-      "title": "技术债务修复实施计划（安全测试/门禁统一/复杂度/死代码）",
-      "file": "2026-08-19.md",
-      "line": 3
+      "date": "2026-08-22",
+      "type": "fix",
+      "scope": "ci",
+      "title": "修复 submodules lint 步骤重复 run 子命令导致的 CI 失败",
+      "file": "2026-08-22.md",
+      "line": 36
     },
     {
       "date": "2026-08-19",
@@ -1540,12 +1540,12 @@
       "line": 37
     },
     {
-      "date": "2026-08-13",
-      "type": "chore",
-      "scope": "desktop",
-      "title": "加固桌面端发布流水线签名门禁并本地验证 macOS 构建链路（R-P1-3）",
-      "file": "2026-08-13.md",
-      "line": 62
+      "date": "2026-08-19",
+      "type": "docs",
+      "scope": "specs",
+      "title": "技术债务修复实施计划（安全测试/门禁统一/复杂度/死代码）",
+      "file": "2026-08-19.md",
+      "line": 3
     },
     {
       "date": "2026-08-13",
@@ -1636,12 +1636,12 @@
       "line": 56
     },
     {
-      "date": "2026-08-12",
-      "type": "refactor",
-      "scope": "repo",
-      "title": "大文件合理拆分（第二轮）：8 个 \u003e500 行文件按职责拆分",
-      "file": "2026-08-12.md",
-      "line": 37
+      "date": "2026-08-13",
+      "type": "chore",
+      "scope": "desktop",
+      "title": "加固桌面端发布流水线签名门禁并本地验证 macOS 构建链路（R-P1-3）",
+      "file": "2026-08-13.md",
+      "line": 62
     },
     {
       "date": "2026-08-12",
@@ -1740,12 +1740,12 @@
       "line": 31
     },
     {
-      "date": "2026-08-11",
-      "type": "fix",
-      "scope": "tui/component",
-      "title": "修复编辑器 Tab 插入 NUL 与 Ctrl+Shift+Z 无法重做",
-      "file": "2026-08-11.md",
-      "line": 108
+      "date": "2026-08-12",
+      "type": "refactor",
+      "scope": "repo",
+      "title": "大文件合理拆分（第二轮）：8 个 \u003e500 行文件按职责拆分",
+      "file": "2026-08-12.md",
+      "line": 37
     },
     {
       "date": "2026-08-11",
@@ -1932,12 +1932,12 @@
       "line": 93
     },
     {
-      "date": "2026-08-09",
+      "date": "2026-08-11",
       "type": "fix",
-      "scope": "tui",
-      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
-      "file": "2026-08-09.md",
-      "line": 3
+      "scope": "tui/component",
+      "title": "修复编辑器 Tab 插入 NUL 与 Ctrl+Shift+Z 无法重做",
+      "file": "2026-08-11.md",
+      "line": 108
     },
     {
       "date": "2026-08-09",
@@ -1964,11 +1964,11 @@
       "line": 39
     },
     {
-      "date": "2026-08-08",
+      "date": "2026-08-09",
       "type": "fix",
-      "scope": "tui/chat",
-      "title": "流式丢字三缺陷根修：AgentEnd 对账 + 去重改连续抑制 + 删除 overlap 剥离",
-      "file": "2026-08-08.md",
+      "scope": "tui",
+      "title": "全量审阅修复：P0 resize 防抖自续循环 + 12 项 P1 + 31 项 P2（TUI 2026-08-09 审阅）",
+      "file": "2026-08-09.md",
       "line": 3
     },
     {
@@ -1988,11 +1988,11 @@
       "line": 13
     },
     {
-      "date": "2026-08-07",
-      "type": "refactor",
-      "scope": "techdebt",
-      "title": "技术债务清理：移除孤儿代码与仓库卫生修复（P0+P1）",
-      "file": "2026-08-07.md",
+      "date": "2026-08-08",
+      "type": "fix",
+      "scope": "tui/chat",
+      "title": "流式丢字三缺陷根修：AgentEnd 对账 + 去重改连续抑制 + 删除 overlap 剥离",
+      "file": "2026-08-08.md",
       "line": 3
     },
     {
@@ -2012,11 +2012,11 @@
       "line": 13
     },
     {
-      "date": "2026-08-06",
-      "type": "feat",
-      "scope": "domains/workflows/patent",
-      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
-      "file": "2026-08-06.md",
+      "date": "2026-08-07",
+      "type": "refactor",
+      "scope": "techdebt",
+      "title": "技术债务清理：移除孤儿代码与仓库卫生修复（P0+P1）",
+      "file": "2026-08-07.md",
       "line": 3
     },
     {
@@ -2028,12 +2028,12 @@
       "line": 16
     },
     {
-      "date": "2026-08-04",
-      "type": "refactor",
-      "scope": "desktop",
-      "title": "code-review 修复：标签联动单真相源、嵌套模态 Esc、单写入者窗口状态等 7 项",
-      "file": "2026-08-04.md",
-      "line": 173
+      "date": "2026-08-06",
+      "type": "feat",
+      "scope": "domains/workflows/patent",
+      "title": "OA 答复支持多驳回类型策略生成 + 权利要求区间展开修复",
+      "file": "2026-08-06.md",
+      "line": 3
     },
     {
       "date": "2026-08-04",
@@ -2108,12 +2108,12 @@
       "line": 146
     },
     {
-      "date": "2026-08-03",
-      "type": "fix",
-      "scope": "tui/chat",
-      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
-      "file": "2026-08-03.md",
-      "line": 3
+      "date": "2026-08-04",
+      "type": "refactor",
+      "scope": "desktop",
+      "title": "code-review 修复：标签联动单真相源、嵌套模态 Esc、单写入者窗口状态等 7 项",
+      "file": "2026-08-04.md",
+      "line": 173
     },
     {
       "date": "2026-08-03",
@@ -2124,12 +2124,12 @@
       "line": 9
     },
     {
-      "date": "2026-08-02",
-      "type": "feat",
-      "scope": "desktop",
-      "title": "桌面端多标签闭环：ChatInTab 绑定按标签分派 + TabBar 标签栏",
-      "file": "2026-08-02.md",
-      "line": 74
+      "date": "2026-08-03",
+      "type": "fix",
+      "scope": "tui/chat",
+      "title": "修复TUI流式输出排版混乱：滚动条列恒定预留",
+      "file": "2026-08-03.md",
+      "line": 3
     },
     {
       "date": "2026-08-02",
@@ -2196,12 +2196,12 @@
       "line": 61
     },
     {
-      "date": "2026-08-01",
-      "type": "test",
-      "scope": "cmd/mady",
-      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
-      "file": "2026-08-01.md",
-      "line": 7
+      "date": "2026-08-02",
+      "type": "feat",
+      "scope": "desktop",
+      "title": "桌面端多标签闭环：ChatInTab 绑定按标签分派 + TabBar 标签栏",
+      "file": "2026-08-02.md",
+      "line": 74
     },
     {
       "date": "2026-08-01",
@@ -2228,12 +2228,12 @@
       "line": 3
     },
     {
-      "date": "2026-07-31",
-      "type": "feat",
-      "scope": "plantask",
-      "title": "PlanTask HCL 人机协作闭环落地（规划→批准→执行→打断→反馈→续跑）",
-      "file": "2026-07-31.md",
-      "line": 173
+      "date": "2026-08-01",
+      "type": "test",
+      "scope": "cmd/mady",
+      "title": "buildAgentConfig 集成测试：MaxTokens 保留不变量",
+      "file": "2026-08-01.md",
+      "line": 7
     },
     {
       "date": "2026-07-31",
@@ -2636,12 +2636,12 @@
       "line": 584
     },
     {
-      "date": "2026-07-30",
-      "type": "refactor",
-      "scope": "*",
-      "title": "P3-A God包拆分 + P3-E 架构边界修复 — 剩余9项全部完成",
-      "file": "2026-07-30.md",
-      "line": 3
+      "date": "2026-07-31",
+      "type": "feat",
+      "scope": "plantask",
+      "title": "PlanTask HCL 人机协作闭环落地（规划→批准→执行→打断→反馈→续跑）",
+      "file": "2026-07-31.md",
+      "line": 173
     },
     {
       "date": "2026-07-30",
@@ -2796,12 +2796,12 @@
       "line": 48
     },
     {
-      "date": "2026-07-29",
-      "type": "chore",
+      "date": "2026-07-30",
+      "type": "refactor",
       "scope": "*",
-      "title": "桌面端第二波 W2-T1 — TodoDock 底部待办坞",
-      "file": "2026-07-29.md",
-      "line": 134
+      "title": "P3-A God包拆分 + P3-E 架构边界修复 — 剩余9项全部完成",
+      "file": "2026-07-30.md",
+      "line": 3
     },
     {
       "date": "2026-07-29",
@@ -2876,12 +2876,12 @@
       "line": 95
     },
     {
-      "date": "2026-07-28",
+      "date": "2026-07-29",
       "type": "chore",
-      "scope": "tui",
-      "title": "TUI 鼠标/键盘输入子系统增强（差距分析方案 1/3/6）",
-      "file": "2026-07-28.md",
-      "line": 332
+      "scope": "*",
+      "title": "桌面端第二波 W2-T1 — TodoDock 底部待办坞",
+      "file": "2026-07-29.md",
+      "line": 134
     },
     {
       "date": "2026-07-28",
@@ -3004,12 +3004,12 @@
       "line": 389
     },
     {
-      "date": "2026-07-27",
-      "type": "feat",
-      "scope": "*",
-      "title": "候选链配置入口 — 环境变量 + 配置文件启用模型回退（PilotDeck 架构引入 第六阶段）",
-      "file": "2026-07-27.md",
-      "line": 713
+      "date": "2026-07-28",
+      "type": "chore",
+      "scope": "tui",
+      "title": "TUI 鼠标/键盘输入子系统增强（差距分析方案 1/3/6）",
+      "file": "2026-07-28.md",
+      "line": 332
     },
     {
       "date": "2026-07-27",
@@ -3172,12 +3172,12 @@
       "line": 36
     },
     {
-      "date": "2026-07-26",
-      "type": "fix",
+      "date": "2026-07-27",
+      "type": "feat",
       "scope": "*",
-      "title": "严格代码审查后的质量修复（B1/B2/I1-I4）",
-      "file": "2026-07-26.md",
-      "line": 434
+      "title": "候选链配置入口 — 环境变量 + 配置文件启用模型回退（PilotDeck 架构引入 第六阶段）",
+      "file": "2026-07-27.md",
+      "line": 713
     },
     {
       "date": "2026-07-26",
@@ -3244,12 +3244,12 @@
       "line": 486
     },
     {
-      "date": "2026-07-25",
-      "type": "docs",
+      "date": "2026-07-26",
+      "type": "fix",
       "scope": "*",
-      "title": "审阅决策 — OrchestrationExecutor 增加递归深度限制",
-      "file": "2026-07-25.md",
-      "line": 260
+      "title": "严格代码审查后的质量修复（B1/B2/I1-I4）",
+      "file": "2026-07-26.md",
+      "line": 434
     },
     {
       "date": "2026-07-25",
@@ -3356,12 +3356,12 @@
       "line": 232
     },
     {
-      "date": "2026-07-24",
-      "type": "chore",
-      "scope": "disclosure",
-      "title": "B 档高价值接线 — guardian/tracing/evidence/disclosure",
-      "file": "2026-07-24.md",
-      "line": 275
+      "date": "2026-07-25",
+      "type": "docs",
+      "scope": "*",
+      "title": "审阅决策 — OrchestrationExecutor 增加递归深度限制",
+      "file": "2026-07-25.md",
+      "line": 260
     },
     {
       "date": "2026-07-24",
@@ -3516,12 +3516,12 @@
       "line": 701
     },
     {
-      "date": "2026-07-23",
-      "type": "docs",
-      "scope": "*",
-      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
-      "file": "2026-07-23.md",
-      "line": 225
+      "date": "2026-07-24",
+      "type": "chore",
+      "scope": "disclosure",
+      "title": "B 档高价值接线 — guardian/tracing/evidence/disclosure",
+      "file": "2026-07-24.md",
+      "line": 275
     },
     {
       "date": "2026-07-23",
@@ -3668,12 +3668,12 @@
       "line": 51
     },
     {
-      "date": "2026-07-22",
+      "date": "2026-07-23",
       "type": "docs",
       "scope": "*",
-      "title": "知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充",
-      "file": "2026-07-22.md",
-      "line": 243
+      "title": "文档格式转换能力纯 Go 补齐（XLSX 解析 + DOCX/PDF 渲染器）",
+      "file": "2026-07-23.md",
+      "line": 225
     },
     {
       "date": "2026-07-22",
@@ -3732,12 +3732,12 @@
       "line": 285
     },
     {
-      "date": "2026-07-21",
-      "type": "perf",
-      "scope": "tui",
-      "title": "TUI 四轮优化 Sprint — 启动瘦身/状态机/错误回显/系统面板",
-      "file": "2026-07-21.md",
-      "line": 601
+      "date": "2026-07-22",
+      "type": "docs",
+      "scope": "*",
+      "title": "知识管理系统审阅优化 — BuildProjectAgent 注入 + 测试补充",
+      "file": "2026-07-22.md",
+      "line": 243
     },
     {
       "date": "2026-07-21",
@@ -3916,12 +3916,12 @@
       "line": 625
     },
     {
-      "date": "2026-07-20",
-      "type": "chore",
-      "scope": "*",
-      "title": "EvalHook 数据接消费端——评估指标从\"发了没人看\"到可查询、可告警",
-      "file": "2026-07-20.md",
-      "line": 948
+      "date": "2026-07-21",
+      "type": "perf",
+      "scope": "tui",
+      "title": "TUI 四轮优化 Sprint — 启动瘦身/状态机/错误回显/系统面板",
+      "file": "2026-07-21.md",
+      "line": 601
     },
     {
       "date": "2026-07-20",
@@ -4148,12 +4148,12 @@
       "line": 562
     },
     {
-      "date": "2026-07-19",
-      "type": "fix",
+      "date": "2026-07-20",
+      "type": "chore",
       "scope": "*",
-      "title": "里程碑 1——本地开发反馈回路完整性修复",
-      "file": "2026-07-19.md",
-      "line": 315
+      "title": "EvalHook 数据接消费端——评估指标从\"发了没人看\"到可查询、可告警",
+      "file": "2026-07-20.md",
+      "line": 948
     },
     {
       "date": "2026-07-19",
@@ -4196,12 +4196,12 @@
       "line": 41
     },
     {
-      "date": "2026-07-18",
+      "date": "2026-07-19",
       "type": "fix",
       "scope": "*",
-      "title": "规范合规全面修复（P0/P1/P2/P3 共 9 项）",
-      "file": "2026-07-18.md",
-      "line": 316
+      "title": "里程碑 1——本地开发反馈回路完整性修复",
+      "file": "2026-07-19.md",
+      "line": 315
     },
     {
       "date": "2026-07-18",
@@ -4402,6 +4402,14 @@
       "title": "Code Review 第二轮修复（5 项 P0/P1 + 1 项测试质量）",
       "file": "2026-07-18.md",
       "line": 437
+    },
+    {
+      "date": "2026-07-18",
+      "type": "fix",
+      "scope": "*",
+      "title": "规范合规全面修复（P0/P1/P2/P3 共 9 项）",
+      "file": "2026-07-18.md",
+      "line": 316
     }
   ]
 }
