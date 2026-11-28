@@ -1320,4 +1320,4 @@
 - **护栏生效**：M59 的 5 例断言（关于区展示 `9.9.9`、点深色触发 `setMode('dark')`、五分区导航、`theme-gallery` testid、关闭按钮）原样通过
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例（共 142）
 - **发现分级**：P0 0 项；P3 1 项（用 python 定位分区末尾 `</div>` 时命中位置偏移，残留旧 JSX 引发 `TS17002`，已加断言并以精确行号删除修正；教训：按标签文本匹配替换 JSX 时须先断言命中数，替换后用 `tsc` 兜底）
-- **提交**：待回填
+- **提交**：ddbc153c（refactor）、866a17db（docs + changelog）
