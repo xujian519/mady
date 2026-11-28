@@ -1046,4 +1046,4 @@
 - **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check` 通过
 - **指标重扫**（1050 文件）：静默吞错 **1 → 0**；忽略 error 0、未注释导出 0、TODO 3、裸 fmt 65、长函数 34 不变
 - **人工审阅**：敏感路径（`agentcore/permission/` 前缀）+ AI 参与，提交前经用户确认；gate 以 `SKIP=check-sensitive-paths` 放行，理由见 changelog
-- **提交**：`<待回填>`
+- **提交**：30dfa5f8（refactor）、9ba8f19e（docs + changelog）
