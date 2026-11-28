@@ -1306,4 +1306,4 @@
 - **护栏生效**：M58 的 6 例断言（含 `/layout focus` 前端拦截）原样通过
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例
 - **发现分级**：P0 0 项；P3 1 项（拆分后 `useSettingsStore`、`exportSession`/`downloadSession`/`generateExportFilename` 在组件中变为未使用，已清理导入）
-- **提交**：待回填
+- **提交**：a4fcce83（refactor）、49bf1950（docs + changelog）
