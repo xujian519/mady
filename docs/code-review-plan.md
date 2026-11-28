@@ -171,6 +171,7 @@
 | M58 | 前端护栏卡 3：`Composer` 组件测试 | 新增 6 例（空输入/发送/Shift+Enter/运行中/本地命令/空白），前端用例 131 → 137 | ✅ 2026-11-28 |
 | M59 | 前端护栏卡 4：`SettingsPanel` 组件测试 | 新增 5 例（分区导航/主题切换/内容切换/版本号/关闭），137 → 142 | ✅ 2026-11-28 |
 | M60 | 前端拆解卡 3：`lib/backend.ts` 569 行 | 按 runtime/conversation/workspace 三域拆分，`backend.ts` 转为 15 行聚合入口 | ✅ 2026-11-28 |
+| M61 | 前端拆解卡 4：`chat/Composer.tsx` 473 行 | 草稿/历史持久化与本地命令拦截迁 `chat/composer/`，主组件 391 行 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1293,3 +1294,16 @@
 - **门禁**：`npx tsc --noEmit` 0 error（消费方零改动即编译通过，证明导出面未破）；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例
 - **发现分级**：P0 0 项；P3 1 项（初版脚本把 `isWailsHost`/`resolveBinding` 一并导出，已收窄为私有，避免无谓扩大 API 面）
 - **提交**：1cb43f90（refactor）、8eceb658（docs + changelog）
+
+### M61（2026-11-28）前端拆解卡 4：`chat/Composer.tsx` ✅
+
+- **范围**：`src/components/chat/Composer.tsx` 473 行（M58 已补 6 例组件测试作护栏）
+- **拆分口径**：只搬「与组件状态无关」的两块，渲染与事件编排留在主组件
+  - `chat/composer/draftStore.ts`（39 行）— 会话草稿/发送历史的 localStorage 读写与 key 生成，含 `MAX_SEND_HISTORY`
+  - `chat/composer/localCommands.ts`（66 行）— `/theme` `/layout` `/settings` `/export` `/clear` `/new` 的前端拦截
+- **签名变化**：`tryLocalCommand(input)` → `tryLocalCommand(input, setMode)`，把 `useTheme` 的 `setMode` 显式注入，模块不再依赖 React hook，可直接单测
+- **等价性验证**：整体行多重集 399 → 398，差异仅为 `export` 前缀、两处段落注释改写、`MAX_SEND_HISTORY` 随 `saveSendHistory` 迁移；无逻辑行丢失
+- **护栏生效**：M58 的 6 例断言（含 `/layout focus` 前端拦截）原样通过
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例
+- **发现分级**：P0 0 项；P3 1 项（拆分后 `useSettingsStore`、`exportSession`/`downloadSession`/`generateExportFilename` 在组件中变为未使用，已清理导入）
+- **提交**：待回填
