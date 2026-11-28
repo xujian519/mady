@@ -1219,4 +1219,4 @@
 - **生产代码改动（零行为）**：为使纯函数可测，给 `ChatView.tsx` 的 6 个内部声明加 `export`（`mapHistoryMessage`/`formatStepName`/`formatTokens`/`TranscriptItem`/`estimateLines`/`itemHeight`/`hasActiveContent`），未移动、未改签名、未改逻辑
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例（原 14 + 新增 22）
 - **发现分级**：P0 0 项；P2 1 项（ChatView 无法在 jsdom 直接加载，需 mock pdfjs——已记录，拆分时应把纯函数抽到无重依赖模块）
-- **提交**：待回填
+- **提交**：82c79435（test）、2392cb20（docs + changelog）
