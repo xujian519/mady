@@ -1159,4 +1159,5 @@
 - **指标**：非测试源文件 1227 → 1229（+2，`statutory.go` 保留）；`long_funcs` 35 不变（该文件无 >120 行函数）；其余指标不变，`metrics-trend` 通过；`AGENTS.md` 计数由 `doc-check --update` 同步
 - **发现分级**：P0 0 项；P2 1 项（孤立注释处理，已修复并记录方法）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **推送**：远端 main 已前进（dependabot 升级 goldmark/gopdf），以 `git merge origin/main` 同步（不改写 main 历史，未用 rebase），合并后复跑 build/vet/lint/`go mod tidy -diff`/test-race 全绿再推送
 - **提交**：cefbe491（refactor）、890e441f（docs + changelog）
