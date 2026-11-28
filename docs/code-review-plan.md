@@ -1247,4 +1247,4 @@
 - **等价性验证**：原 47–138 行共 79 行有效代码与新模块逐行多重集比对**零丢失**（仅新增模块头注释）；M54 的 17 例断言原样通过
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例
 - **发现分级**：P0 0 项；P2 1 项（拆分后主组件里 `Message`/`ToolCall`/`CompactionNotice`/`RetryNotice` 类型导入变为未使用，已清理并改为从 `transcript` 导入所需函数）
-- **提交**：待回填
+- **提交**：caa3b7eb（refactor）、f5c75524（docs + changelog）
