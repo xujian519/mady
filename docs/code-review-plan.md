@@ -1279,4 +1279,4 @@
 - **交付**：`src/components/__tests__/SettingsPanel.test.tsx`（5 例）——对话框与五个分区导航渲染（默认停外观区）；点击「深色」写回 `themeMode` 并调用 `setMode('dark')`；点击分区切换内容（MCP/模型）；关于区展示 `health().version`；关闭按钮触发 `onClose`
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例（46 + 5）
 - **发现分级**：P0 0 项；P2 0 项
-- **提交**：待回填
+- **提交**：035941ae（test）、5ab0afb8（docs + changelog）
