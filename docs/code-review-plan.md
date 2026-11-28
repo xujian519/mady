@@ -1193,4 +1193,4 @@
 - **指标**：非测试源文件 1232 → 1235（+3）；`long_funcs` 35 不变；其余指标不变，`metrics-trend` 通过；`AGENTS.md` 计数由 `doc-check --update` 同步
 - **发现分级**：P0 0 项；P2 1 项（切块脚本初始输出键，已修复并记录）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
-- **提交**：待回填
+- **提交**：15eb963f（refactor）、c3ca94cf（docs + changelog）
