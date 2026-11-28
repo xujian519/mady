@@ -1465,3 +1465,4 @@
   **0 issues**；四包 `go test -race` 全绿；`go test -race ./...` 仅剩预存失败
   `knowledge/sqlite TestSearchLaws`（缺本机 `~/.mady/knowledge/laws-full.db`），与本卡无关；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+- **提交**：71a9f6b0（test）、0cd839ff（docs + changelog）
