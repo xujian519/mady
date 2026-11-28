@@ -103,6 +103,45 @@ func DefaultToolCardTheme() ToolCardTheme {
 	}
 }
 
+// TestGoldenToolCardStates 覆盖 RenderToolCard 的状态维度：上面那张表只跑
+// 完成态（done），这里补 running（无结果摘要）与 failed（错误样式 + 长 CJK
+// 截断），以及 CJK diff 的折行——三者都是「只有整卡快照才能发现错位」的场景。
+func TestGoldenToolCardStates(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  ToolCardConfig
+	}{
+		{
+			name: "tool_card_running_w40",
+			cfg:  ToolCardConfig{Name: "grep", Status: "running", Seq: 1},
+		},
+		{
+			name: "tool_card_failed_cjk_w40",
+			cfg: ToolCardConfig{
+				Name:   "cnipr_search",
+				Status: "✗ failed: 检索接口返回超时，请检查网络连接后重试，或改用号单检索",
+			},
+		},
+		{
+			name: "tool_card_diff_cjk_w80",
+			cfg: ToolCardConfig{
+				Name:     "edit",
+				Status:   "✓ done",
+				DiffText: "--- a/权利要求书.md\n+++ b/权利要求书.md\n-一种装置，包括处理器。\n+一种装置，包括处理器与存储器。",
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			width := int64(40)
+			if strings.HasSuffix(c.name, "w80") {
+				width = 80
+			}
+			goldenMatch(t, c.name, RenderToolCard(c.cfg, DefaultToolCardTheme(), width))
+		})
+	}
+}
+
 // --- RenderEvidenceCard ---
 
 func TestGoldenEvidenceCard(t *testing.T) {

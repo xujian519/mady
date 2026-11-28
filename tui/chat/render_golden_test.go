@@ -7,7 +7,7 @@ package chat
 // 连续工具调用归并、窄宽度下的代码块降级。这些都由 Render 的分支组合决定，
 // 单点断言（含某字符/某头）无法发现「整体错位一列」的回归。
 //
-// 本文件把整段渲染结果落到 testdata/render_golden.txt，并断言每行不超过目标宽度。
+// 本文件把整段渲染结果落到 testdata/render_golden.golden，并断言每行不超过目标宽度。
 // 更新入口：go test ./chat -run TestRenderGoldenTranscript -count=1 -args -update
 
 import (
@@ -20,9 +20,9 @@ import (
 	"github.com/xujian519/mady/tui/core"
 )
 
-var updateTranscriptGolden = flag.Bool("update", false, "重建 chat/testdata/render_golden.txt")
+var updateTranscriptGolden = flag.Bool("update", false, "重建 chat/testdata/render_golden.golden")
 
-const transcriptGoldenPath = "testdata/render_golden.txt"
+const transcriptGoldenPath = "testdata/render_golden.golden"
 
 type transcriptCase struct {
 	name   string
