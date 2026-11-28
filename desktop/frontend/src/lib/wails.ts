@@ -23,13 +23,19 @@ export type { EventsOn, EventsEmit }
  * 纯浏览器（pnpm dev / e2e）中该对象不存在，必须回避真实绑定。
  */
 function isWailsHost(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).runtime
+  return typeof window !== 'undefined' && !!window.runtime
 }
 
 /**
  * 订阅 Wails 事件。在 Wails 宿主中绑定 EventsOn，纯浏览器环境 noop。
+ *
+ * 载荷类型由调用方给定（`listenToWailsEvent<AguiEventPayload>(...)`），
+ * 避免用 `any[]` 抹平各事件之间的载荷差异。
  */
-export function listenToWailsEvent(eventName: string, callback: (...args: any[]) => void): () => void {
+export function listenToWailsEvent<T = unknown>(
+  eventName: string,
+  callback: (payload: T) => void,
+): () => void {
   if (isWailsHost()) {
     return EventsOn(eventName, callback)
   }

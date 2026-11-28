@@ -4,14 +4,9 @@
  * 封装对 Wails Go Binding 的调用，提供类型安全的 API。
  * 生产环境优先使用 Wails 注入的 `window.go` 全局对象；
  * 开发期/浏览器回退到动态导入生成的 `wailsjs` 模块。
+ *
+ * `window.go` 的全局声明集中在 `src/types/wails.d.ts`（P2-7）。
  */
-
-declare global {
-  interface Window {
-    /** Wails 运行时注入的 Go binding 根对象。 */
-    go?: Record<string, any>
-  }
-}
 
 /** 是否在真实的 Wails 宿主中运行。 */
 function isWailsHost(): boolean {
@@ -29,12 +24,19 @@ async function resolveBinding(
 ): Promise<(...args: unknown[]) => Promise<unknown>> {
   if (isWailsHost()) {
     const parts = module.split('/')
-    let target: any = window.go
+    let target: unknown = window.go
     for (const part of parts) {
-      target = target?.[part]
+      if (target === null || typeof target !== 'object') {
+        target = undefined
+        break
+      }
+      target = (target as Record<string, unknown>)[part]
     }
-    if (typeof target?.[method] === 'function') {
-      return target[method].bind(target)
+    if (target !== null && typeof target === 'object') {
+      const fn = (target as Record<string, unknown>)[method]
+      if (typeof fn === 'function') {
+        return (fn as (...args: unknown[]) => Promise<unknown>).bind(target)
+      }
     }
   }
 

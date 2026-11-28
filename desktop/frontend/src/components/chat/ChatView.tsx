@@ -18,7 +18,7 @@
  */
 
 import React, { useRef, useEffect, useMemo, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import { useShallow } from 'zustand/react/shallow'
 import { useChatStore, initialState } from '@/stores/chat'
 import { useTabsStore } from '@/stores/tabs'
@@ -61,7 +61,7 @@ import { Sparkles, PanelRightOpen, Database, FileText, Server, Zap, Loader2, Ref
 // ── 智能自动滚动 Hook ─────────────────────────────
 
 function useAutoScroll(
-  virtualizer: any,
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
   enabled: boolean,
   items: TranscriptItem[],
   scrollContainerRef: React.RefObject<HTMLDivElement | null>,

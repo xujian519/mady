@@ -69,7 +69,7 @@ function App() {
   useEffect(() => {
     if (ENABLE_TEST_API) {
       const a2ui = useA2UIStore.getState()
-      ;(window as any).__mady = {
+      ;window.__mady = {
         a2ui: {
           applyEnvelope: a2ui.applyEnvelope,
           getSurface: a2ui.getSurface,
@@ -93,8 +93,8 @@ function App() {
       }
     }
     return () => {
-      if ((window as any).__mady) {
-        delete (window as any).__mady
+      if (window.__mady) {
+        delete window.__mady
       }
     }
   }, [])
