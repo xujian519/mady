@@ -164,6 +164,7 @@
 | M51 | 大文件拆解卡 4：`domains/figure/generate/dot.go` 822 行 | 类型留原文件，构建/渲染/模板拆 3 文件，零行为变更 | ✅ 2026-11-28 |
 | M52 | 大文件拆解卡 5：`domains/figure/generate/tool.go` 773 行 | 工具入口留原文件，schema/执行渲染/路径解析拆 3 文件 | ✅ 2026-11-28 |
 | M53 | 大文件拆解收尾：`evaluate/benchmark/patent_exam_real_a22.go` 619 行 | 判定保留单文件（一法条一文件惯例），仅补三段年份注释 | ✅ 2026-11-28 |
+| M54 | 前端护栏卡：`ProjectTree.tsx` / `ChatView.tsx` 拆解前补特征测试 | 新增 22 例（组件 5 + 纯函数 17），前端用例 105 → 127 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1207,3 +1208,15 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **阶段 8 收尾状态**：Go 侧大文件候选（check.go / cli-chat main.go / statutory.go / dot.go / tool.go / a22 数据集）全部处置完毕；前端 5 个大文件（`ProjectTree.tsx` 879 等）仍按保守档只记录不拆
 - **提交**：6210747e（docs）、ec7ee7d2（docs + changelog）
+
+### M54（2026-11-28）前端护栏卡：ProjectTree / ChatView 拆解前补特征测试 ✅
+
+- **范围**：前端两个最大组件——`src/components/ProjectTree.tsx` 879 行、`src/components/chat/ChatView.tsx` 822 行；用户确认**仍不拆分**，只补护栏
+- **取证**：前端已有两套 vitest 配置（node 跑 `*.test.ts`、jsdom 跑 `*.test.tsx`）；`ProjectTree` 依赖 `@/lib/backend` + project store，可 mock 后直接渲染；`ChatView` 静态导入链经过 `DocumentViewer → PdfViewer → pdfjs-dist`，jsdom 下导入即报 `DOMMatrix is not defined`，须先 `vi.mock('pdfjs-dist')`
+- **交付**：
+  - `src/components/__tests__/ProjectTree.test.tsx`（5 例）：根目录「文件夹优先 + 名称升序」、加载中占位、加载失败文案与重试入口、空目录文案、点击文件夹箭头按路径懒加载子项
+  - `src/components/chat/__tests__/ChatView.helpers.test.tsx`（17 例）：`mapHistoryMessage`（id fallback/角色归一/非字符串内容/NaN 时间戳/thinking 类型）、`formatStepName`、`formatTokens`、`estimateLines`、`itemHeight`（固定项/消息/思考封顶 200/工具调用叠加）、`hasActiveContent`
+- **生产代码改动（零行为）**：为使纯函数可测，给 `ChatView.tsx` 的 6 个内部声明加 `export`（`mapHistoryMessage`/`formatStepName`/`formatTokens`/`TranscriptItem`/`estimateLines`/`itemHeight`/`hasActiveContent`），未移动、未改签名、未改逻辑
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例（原 14 + 新增 22）
+- **发现分级**：P0 0 项；P2 1 项（ChatView 无法在 jsdom 直接加载，需 mock pdfjs——已记录，拆分时应把纯函数抽到无重依赖模块）
+- **提交**：待回填
