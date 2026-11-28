@@ -1436,6 +1436,7 @@
   `npm test` **142** 用例全绿（91 + 51）
 - **发现分级**：P0 0 项；P2 0 项（`payloads.ts` 的键集合由映射类型强制与 `HANDLERS` 同步）
 - **门禁**：`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（无 Go 改动）
+- **提交**：986d704f（refactor）、b01cf1e3（docs + changelog）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
