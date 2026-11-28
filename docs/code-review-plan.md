@@ -156,6 +156,7 @@
 | M43 | agentcore/permission 敏感路径确认（`rule.go` 解析失败 fail-open 边界） | 1 处，仅补意图注释（零行为） | ✅ 2026-11-28 |
 | M44 | cmd/ CLI 输出规范卡（裸 fmt 指标口径收口） | 新增 `docs/cli-output-standards.md`；扫描器 `cli_fmt` 分类 | ✅ 2026-11-28 |
 | M45 | 长函数拆解清单卡（>120 行登记，不拆代码） | 新增 `docs/code-health/long-function-inventory.md`；扫描器 `--list-long-funcs` + off-by-one 修正 | ✅ 2026-11-28 |
+| M46 | 指标趋势看板卡（终审指标固化为 CI 门禁） | 新增 `metrics-baseline.json` + `check_metrics_trend.py`；`make metrics-trend` / CI job / 3 个负控制用例 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1078,3 +1079,19 @@
 - **发现分级**：P0 0 项；P2 1 项（长函数计数 off-by-one，本卡修正）
 - **门禁**：无 Go 代码改动（仅 Python 扫描器与文档）；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **提交**：587c1762（refactor）、dd465ab6（docs + changelog）
+
+### M46（2026-11-28）指标趋势看板卡：终审指标固化为门禁 ✅
+
+- **范围**：终审报告 §七-5 建议——把 §二 的指标表固化进 CI 趋势看板，防吞错注释被回退、导出注释被删、长函数膨胀
+- **交付**：
+  - `docs/code-health/metrics-trend.md`：规范家——受控指标 6 项（`bare_fmt` / `ignored_err` / `silent_return` / `uncommented_exported` / `long_funcs` / `fixme`）、阈值语义（只防增长）、棘轮更新流程、为什么不进 pre-commit
+  - `docs/code-health/metrics-baseline.json`：基线单源（root / tui / desktop 三模块），CI 永不写
+  - `scripts/check_metrics_trend.py`：复用 `scan_go_smells` 分析函数（`MADY_SCAN_ROOT` 注入根目录），高于基线 exit 1、低于基线提示收紧、基线缺失/损坏 fail-closed；`--update` 默认拒绝上调，需 `--allow-increase`
+  - `Makefile`：新增 `metrics-trend` 目标（python3 缺失 fail-closed）并加入 `verify` 链
+  - `.github/workflows/ci.yml`：新增 `metrics-trend` job
+  - `scripts/gatechecks/gate_test.go`：3 个负控制用例（高于基线必拦 / 持平放行 / 基线缺失 fail-closed）
+- **不设阈值**：`cli_fmt`（CLI 输出层规范豁免）与 `files`（随功能增长），仍在报告中可见
+- **结果**：指标零变化（root 0/0/0/0/35/3；tui 0/0/0/0/10/0；desktop 全 0），基线即 M45 终态
+- **发现分级**：P0 0 项；P2 0 项
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过；CI YAML 经 ruby YAML 解析通过；`actionlint` 对 `ci.yml` 仅报 2 处预存 shellcheck 风格问题（mod-tidy job 的 `if [ $? -ne 0 ]`，非本卡改动，CI 未接 actionlint）
+- **提交**：待回填

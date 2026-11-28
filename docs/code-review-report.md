@@ -116,4 +116,4 @@ git diff --stat                                  # deletions 必须为 0，新�
 3. ~~忽略 err 收敛小卡（M39）~~ ✅ 已完成：23 → 8（M40 口径修正后 10 处真实忽略）。
 3b. ~~**可疑忽略 fix 卡**（建议下一张）~~ ✅ 已完成（M41）：10 处逐条判定并清零，6 处改为 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免。
 4. 大文件拆解另立计划（需行为等价重构 + 完整测试护栏），不建议并入保守档。
-5. 把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）。
+5. ~~把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）~~ ✅ M46 已完成：基线单源 `docs/code-health/metrics-baseline.json`，`scripts/check_metrics_trend.py` 高于基线即失败、低于基线可棘轮下压、基线缺失 fail-closed；接入 `make verify` 与 CI `metrics-trend` job，并有 3 个红绿负控制用例（`scripts/gatechecks/`）。
