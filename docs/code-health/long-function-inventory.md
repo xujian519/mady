@@ -31,8 +31,8 @@
 
 | 行数 | 位置 | 函数 | 拆分方向 |
 | ---: | --- | --- | --- |
-| 232 | `domains/figure/generate/check.go:311` | `scanSVG` | 按 SVG 元素/属性类型拆表驱动 handler（`scanElement` 映射表），共享游标与结果累加器 |
-| 145 | `domains/figure/generate/check.go:603` | `parsePath` | 按 path 命令字母（M/L/C/Z…）拆子函数，游标与回调抽成小结构 |
+| 232 | `domains/figure/generate/check_scan.go:202` | `scanSVG` | 按 SVG 元素/属性类型拆表驱动 handler（`scanElement` 映射表），共享游标与结果累加器 |
+| 145 | `domains/figure/generate/check_path.go:33` | `parsePath` | 按 path 命令字母（M/L/C/Z…）拆子函数，游标与回调抽成小结构 |
 | 140 | `knowledge/loader/wiki.go:112` | `importDirectory` | 拆「遍历过滤 / 单文件导入 / 统计累加」三段，目录遍历与导入解耦 |
 | 124 | `domains/evidence/date.go:270` | `extractDateFromText` | 按日期格式族拆候选提取器 + 统一打分，格式表驱动 |
 | 123 | `tui/terminal/key_decode.go:126` | `decodeKittyU` | 纯函数，按 CSI-u 字段解析拆小函数，用表格驱动测试逐个锁定 |

@@ -157,6 +157,7 @@
 | M44 | cmd/ CLI 输出规范卡（裸 fmt 指标口径收口） | 新增 `docs/cli-output-standards.md`；扫描器 `cli_fmt` 分类 | ✅ 2026-11-28 |
 | M45 | 长函数拆解清单卡（>120 行登记，不拆代码） | 新增 `docs/code-health/long-function-inventory.md`；扫描器 `--list-long-funcs` + off-by-one 修正 | ✅ 2026-11-28 |
 | M46 | 指标趋势看板卡（终审指标固化为 CI 门禁） | 新增 `metrics-baseline.json` + `check_metrics_trend.py`；`make metrics-trend` / CI job / 3 个负控制用例 | ✅ 2026-11-28 |
+| M47 | 大文件拆解卡 1：`domains/figure/generate/check.go` 981 行 | 纯声明块搬迁为 4 文件（174/489/213/123），零行为变更 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1095,3 +1096,19 @@
 - **发现分级**：P0 0 项；P2 0 项
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过；CI YAML 经 ruby YAML 解析通过；`actionlint` 对 `ci.yml` 仅报 2 处预存 shellcheck 风格问题（mod-tidy job 的 `if [ $? -ne 0 ]`，非本卡改动，CI 未接 actionlint）
 - **提交**：4eaca6dc（feat）、57868fc3（docs + changelog）
+
+### M47（2026-11-28）大文件拆解卡 1：`figure/generate/check.go` ✅
+
+- **范围**：终审报告 §五-4 最大 Go 文件 `domains/figure/generate/check.go`（981 行），包内已有 12 个测试文件作护栏
+- **方法**：**纯声明块搬迁**（不重写逻辑）——按顶层声明 + 紧邻注释切块，路由到同包新文件；`goimports` 补各文件导入；零函数体改动
+- **拆分结果**：
+  - `check.go` 174 行 — 对外 API：类型/常量、`ClearanceMm`、`BlockingFindings`、`CheckFigure`、`mmBox`
+  - `check_scan.go` 489 行 — SVG 扫描器：`scanState/scanResult` 等类型、标签/属性解析、`parseTransform`、`scanSVG`、折线段收集
+  - `check_path.go` 213 行 — 路径语法与几何：`matrix` 及其方法、`parsePath`、`sampleCubic/Quadratic`、`tokenizePath`
+  - `check_rules.go` 123 行 — 规则判定：`sameGroup`、`stripTags`、穿字/净距/字高/越界四类 findings
+- **等价性验证**：拆后 gofmt 行多重集与拆分前逐行比对 **915 = 915，零差异**（仅 import 块按文件重算）；`go test -count=1 ./domains/figure/generate/` 通过
+- **口径注意（登记）**：首轮切块脚本把与首个声明隔空行的「渲染复核概述注释」孤立丢弃，已补回；方法沉淀——切块须把非紧邻的前置注释单独纳入，并以多重集比对兜底
+- **指标**：Go 源文件 1050 → 1053（+3，未设阈值）；`long_funcs` 35 不变（`scanSVG` 232 / `parsePath` 145 仍超限，清单行已更新为新路径与行号）；其余指标不变
+- **发现分级**：P0 0 项；P2 1 项（上述注释丢失，已修复并记录方法）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **提交**：待回填
