@@ -168,6 +168,7 @@
 | M55 | 前端拆解卡 1：`ProjectTree.tsx` 879 行 | 主组件留原文件，纯逻辑与行组件拆 2 模块，零行为变更 | ✅ 2026-11-28 |
 | M56 | 前端拆解卡 2：`ChatView.tsx` 822 行 | 虚拟列表纯函数迁 `chat/transcript.ts`，17 例测试随之迁移 | ✅ 2026-11-28 |
 | M57 | 前端护栏卡 2：`ChatView` 组件级测试 | 新增 4 例（空态/消息/流式/错误），前端用例 127 → 131 | ✅ 2026-11-28 |
+| M58 | 前端护栏卡 3：`Composer` 组件测试 | 新增 6 例（空输入/发送/Shift+Enter/运行中/本地命令/空白），前端用例 131 → 137 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1259,3 +1260,13 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 40 例（36 + 4）
 - **发现分级**：P0 0 项；P2 0 项
 - **提交**：0e17765b（test）、5038bb0c（docs + changelog）
+
+### M58（2026-11-28）前端护栏卡 3：`Composer` 组件测试 ✅
+
+- **取证**：`src/components/chat/Composer.tsx` 473 行，此前无任何测试；输入/发送/停止/本地命令拦截是主链路却无回归网
+- **方法**：只 mock 重依赖与副作用边界——`SlashCommandMenu`（菜单交互另属其自身职责）、`@/lib/sessionExport`（下载副作用）、`@/lib/backend`（粘贴图片落盘）；`sendMessage` 通过覆盖 store action 变成可断言的 spy
+- **交付**：`src/components/chat/__tests__/Composer.test.tsx`（6 例）——空输入按钮禁用；输入后点击发送并清空；Enter 发送、Shift+Enter 不发送；运行中禁用输入且占位「等待回复…」；本地 UI 命令（`/layout focus`）前端拦截不落 Agent；纯空白不发送
+- **顺带确认的行为契约**：`/clear` 这类无参数命令会先触发斜杠菜单，Enter 由菜单接管而非直接发送——测试未覆盖该路径，已记录为后续菜单测试的输入
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 46 例（40 + 6）
+- **发现分级**：P0 0 项；P2 0 项
+- **提交**：待回填

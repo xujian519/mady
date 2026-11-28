@@ -36,7 +36,7 @@
 | `desktop/`（Go 后端） | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `desktop/frontend`（TS/TSX） | 102 | — | — | 0（空 catch 0） | 0 | 73 → **0** | 0（>400 行文件 5 个，见 §五） |
 
-前端另核：`console.log/debug` 调试残留 **0**、`@ts-ignore` **0**、`any` 7 处（全为 Wails `window` 桥接，合理）、`eslint-disable` 3 处（均带意图说明）。M54 新增 ProjectTree 组件测试（5 例）与 ChatView 纯函数测试（17 例），M57 再补 ChatView 组件级测试（4 例），前端用例 105 → **131**。
+前端另核：`console.log/debug` 调试残留 **0**、`@ts-ignore` **0**、`any` 7 处（全为 Wails `window` 桥接，合理）、`eslint-disable` 3 处（均带意图说明）。M54 新增 ProjectTree 组件测试（5 例）与 ChatView 纯函数测试（17 例），M57 再补 ChatView 组件级测试（4 例），M58 补 Composer 测试（6 例），前端用例 105 → **137**。
 
 ## 三、分阶段成果
 
@@ -98,7 +98,7 @@ cd desktop && go build ./... && go vet ./... && golangci-lint run ./... && go te
 cd desktop/frontend && npx tsc --noEmit && npx eslint src/ && npm test
 ```
 
-终态事实源校验：`src=1220 test=632`、子命令 17、manifests 3、`LAYERS.md` 与 `tui/` 同步（131 文件）、事实源 61 条。前端 `tsc` 0 error、`eslint` 0 issue、vitest **131** 用例全绿（91 + 40，含 M54/M57 新增 26 例）。
+终态事实源校验：`src=1220 test=632`、子命令 17、manifests 3、`LAYERS.md` 与 `tui/` 同步（131 文件）、事实源 61 条。前端 `tsc` 0 error、`eslint` 0 issue、vitest **137** 用例全绿（91 + 46，含 M54/M57/M58 新增 32 例）。
 
 **预存失败收口情况**：`tui/` 的 17 个渲染失败用例已由 M38 全部收口（`cd tui && go test -race -count=1 ./...` 全绿）；根模块唯一残留失败为 `knowledge/sqlite` 的 `TestSearchLaws`，依赖本机 `~/.mady/knowledge/laws-full.db`，属环境依赖、与本轮审阅无关。
 
