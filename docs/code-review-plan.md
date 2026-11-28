@@ -166,6 +166,7 @@
 | M53 | 大文件拆解收尾：`evaluate/benchmark/patent_exam_real_a22.go` 619 行 | 判定保留单文件（一法条一文件惯例），仅补三段年份注释 | ✅ 2026-11-28 |
 | M54 | 前端护栏卡：`ProjectTree.tsx` / `ChatView.tsx` 拆解前补特征测试 | 新增 22 例（组件 5 + 纯函数 17），前端用例 105 → 127 | ✅ 2026-11-28 |
 | M55 | 前端拆解卡 1：`ProjectTree.tsx` 879 行 | 主组件留原文件，纯逻辑与行组件拆 2 模块，零行为变更 | ✅ 2026-11-28 |
+| M56 | 前端拆解卡 2：`ChatView.tsx` 822 行 | 虚拟列表纯函数迁 `chat/transcript.ts`，17 例测试随之迁移 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1234,3 +1235,16 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例
 - **发现分级**：P0 0 项；P2 1 项（切分时 `ContextMenuState`/`EditingState` 属 UI 状态而非纯树逻辑，已移回主组件并调整导入）
 - **提交**：86ff29d4（refactor）、579e6e9d（docs + changelog）
+
+### M56（2026-11-28）前端拆解卡 2：`ChatView.tsx` ✅
+
+- **范围**：`src/components/chat/ChatView.tsx` 822 行（M54 已为纯函数补 17 例测试）
+- **方法**：把虚拟列表的纯逻辑（历史消息映射、步骤名/Token 格式化、行数与高度估算、活动内容判定）迁到独立模块，主组件保留渲染与自动滚动 hook
+- **拆分结果**：
+  - `ChatView.tsx` 743 行 — 三栏渲染、虚拟列表组装、`useAutoScroll`
+  - `src/components/chat/transcript.ts` 95 行 — `mapHistoryMessage`、`formatStepName`、`formatTokens`、`TranscriptItem`、`estimateLines`、`itemHeight`、`hasActiveContent`（无 React/pdf.js 依赖）
+- **附带收益**：测试不再需要 `vi.mock('pdfjs-dist')`——`ChatView.helpers.test.tsx` 直接导入 `transcript.ts`，消除了 M54 记录的 jsdom 限制
+- **等价性验证**：原 47–138 行共 79 行有效代码与新模块逐行多重集比对**零丢失**（仅新增模块头注释）；M54 的 17 例断言原样通过
+- **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 36 例
+- **发现分级**：P0 0 项；P2 1 项（拆分后主组件里 `Message`/`ToolCall`/`CompactionNotice`/`RetryNotice` 类型导入变为未使用，已清理并改为从 `transcript` 导入所需函数）
+- **提交**：待回填
