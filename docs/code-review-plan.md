@@ -1432,4 +1432,4 @@
   属既有容错设计，测试按现状固化并加注释说明）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./agui/... ./a2ui/...` **0 issues**；
   `go test -race ./agui ./a2ui` 全绿
-- **提交**：（待哈希回填）
+- **提交**：6d5aaf14（test）、93e02219（docs + changelog）
