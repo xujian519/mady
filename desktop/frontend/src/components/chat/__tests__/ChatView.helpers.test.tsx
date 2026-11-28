@@ -7,10 +7,8 @@
  * 这些函数正是拆分时最先会被抽出的部分，断言即拆分护栏。
  */
 
-import { describe, it, expect, vi } from 'vitest'
-
-vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }))
-
+/** ChatView 纯函数特征测试（M54 建立，M56 随函数迁至 transcript.ts）。 */
+import { describe, it, expect } from 'vitest'
 import {
   mapHistoryMessage,
   formatStepName,
@@ -18,7 +16,7 @@ import {
   estimateLines,
   itemHeight,
   hasActiveContent,
-} from '@/components/chat/ChatView'
+} from '@/components/chat/transcript'
 import type { Message, ToolCall } from '@/stores/chat'
 
 describe('mapHistoryMessage', () => {
