@@ -1366,4 +1366,5 @@
 - **连带清理**：主组件不再使用的 `Sun`/`Server`/`Brain`/`Info`/`Plug` 五个图标导入已移除（仅保留 `X`、`Check`、`AlertCircle`），`setActiveSection` 直接作为 `onSelect` 传入
 - **门禁**：`pnpm typecheck` 0 error；`pnpm lint` 0 issue；`pnpm test` 91 + 51 全绿（M59 的五分区导航断言原样通过）；`pnpm build` 成功
 - **发现分级**：P0 0 项；P3 0 项
+- **拆解收尾（用户确认）**：本卡为 `SettingsPanel.tsx` 拆解终点。三次拆分 448 行（M62 前）→ 377（M62）→ 330（M64）→ 304（M65）；剩余 304 行是同一关注点内部的状态/effects/handlers 与 JSX 外壳，继续拆分会把单个组件的职责切散、增加 props 穿透，不再继续。
 - **提交**：a64ba714（refactor）、8cd13df1（docs + changelog）
