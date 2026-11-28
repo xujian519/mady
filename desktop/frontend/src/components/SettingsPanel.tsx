@@ -15,10 +15,11 @@ import { getAISettings, setAISettings, checkUpdate, health } from '@/lib/backend
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import type { UpdateInfo } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, Sun, Moon, Monitor, Server, Cpu, Check, AlertCircle, RefreshCw, ExternalLink, Brain, Info, Plug } from 'lucide-react'
+import { X, Sun, Server, Cpu, Check, AlertCircle, Brain, Info, Plug } from 'lucide-react'
 import { McpServersSettings } from './McpServersSettings'
 import { ModelSettings } from './ModelSettings'
-import { ThemeGallery } from './ThemeGallery'
+import { AppearanceSection } from './settings/AppearanceSection'
+import { AboutSection } from './settings/AboutSection'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -157,12 +158,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     }
   }
 
-  const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode }[] = [
-    { value: 'light', label: '亮色', icon: <Sun size={14} /> },
-    { value: 'dark', label: '深色', icon: <Moon size={14} /> },
-    { value: 'system', label: '跟随系统', icon: <Monitor size={14} /> },
-  ]
-
   // 左侧导航分区（规范 §3.3：SettingsNav 200px、导航项 32px、图标 + 13px 文字）
   const sections: { id: SettingsSectionId; label: string; icon: React.ReactNode }[] = [
     { id: 'appearance', label: '外观', icon: <Sun size={14} /> },
@@ -262,35 +257,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
           <div className="max-w-[720px] mx-auto space-y-6">
             {/* ── 外观 ── */}
             {activeSection === 'appearance' && (
-              <section>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sun size={14} className="text-mady-accent" />
-                  <h3 className="text-mady-ui font-medium">外观</h3>
-                </div>
-                <div className="flex gap-2">
-                  {themeOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => handleThemeChange(opt.value)}
-                      className={`
-                        flex items-center gap-2 px-3 py-2 rounded-lg text-mady-ui transition-colors
-                        ${themeMode === opt.value
-                          ? 'bg-mady-accent text-white'
-                          : 'bg-mady-bg-secondary text-mady-text-secondary hover:bg-mady-border'
-                        }
-                      `}
-                    >
-                      {opt.icon}
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 阶段 3.2：主题画廊（主题包切换） */}
-                <div className="mt-3">
-                  <ThemeGallery />
-                </div>
-              </section>
+              <AppearanceSection themeMode={themeMode} onThemeChange={handleThemeChange} />
             )}
 
             {/* ── AI 服务 ── */}
@@ -366,52 +333,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
             {/* ── 关于 ── */}
             {activeSection === 'about' && (
-              <section>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-3.5 h-3.5 rounded-full bg-mady-accent flex items-center justify-center text-[8px] text-white font-bold">M</span>
-                  <h3 className="text-mady-ui font-medium">关于</h3>
-                </div>
-                <div className="bg-mady-bg-secondary rounded-lg p-3 space-y-1 text-mady-small text-mady-text-secondary">
-                  <div className="flex justify-between">
-                    <span>版本</span>
-                    <span className="text-mady-text-primary">{appVersion ?? '0.1.0'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>构建</span>
-                    <span className="text-mady-text-primary font-mono">desktop</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>A2UI 协议</span>
-                    <span className="text-mady-text-primary font-mono">v0.9.1</span>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCheckUpdate}
-                  disabled={checking}
-                  className="mt-2 inline-flex items-center gap-1.5 text-mady-small text-mady-text-secondary hover:text-mady-accent disabled:opacity-60 transition-colors"
-                >
-                  <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
-                  {checking ? '检查中…' : '检查更新'}
-                </button>
-
-                {/* 发现新版本（R-P1-6：手动下载引导，公证前不自替换） */}
-                {updateInfo?.hasUpdate && updateInfo.downloadUrl && (
-                  <div className="mt-3 rounded-lg border border-mady-accent/30 bg-mady-bg-secondary px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-mady-small text-mady-text-primary">
-                        发现新版本 v{updateInfo.latestVersion}（当前 v{updateInfo.currentVersion}）
-                      </div>
-                      <button
-                        onClick={handleOpenDownload}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-md bg-mady-accent px-2.5 py-1 text-mady-small font-medium text-white hover:opacity-90 transition-opacity"
-                      >
-                        <ExternalLink size={12} />
-                        打开下载页
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </section>
+              <AboutSection
+                version={appVersion}
+                updateInfo={updateInfo}
+                checking={checking}
+                onCheckUpdate={handleCheckUpdate}
+                onOpenDownload={handleOpenDownload}
+              />
             )}
           </div>
         </div>
