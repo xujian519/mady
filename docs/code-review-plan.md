@@ -191,7 +191,8 @@
 | 卡 | 模块 | 规模/口径 | 状态 |
 | --- | --- | --- | --- |
 | M66 | 协议契约基线（取证卡，不改代码） | 七层契约面盘点：帧结构 / 事件类型 / 错误码 / SSE-WS 格式 / 工具 schema / instrumentation + 测试覆盖矩阵，产出 `docs/code-health/protocol-contract-baseline.md` | ✅ 2026-11-28 |
-| M67 | 协议护栏：golden fixture 卡 | 把 M66 契约固化为失败即红的测试（AGUI 事件序列、A2A JSON-RPC 方法/错误码、A2UI envelope、ACP session 通知、server SSE 事件名、MCP 方法集） | ⬜ |
+| M67-1 | 协议护栏 1：AGUI + A2UI golden fixture | 锁定 AGUI 23 事件名 / BaseEvent 字段 / 消息 ID 规则与 A2UI 版本、四信封、JSONL 帧；契约漂移测试即红（受「单卡 3-5 文件」约束拆分） | ✅ 2026-11-28 |
+| M67-2 | 协议护栏 2：A2A + ACP + server + MCP | 锁定 A2A 方法集/错误码/SSE 帧、ACP 方法集/错误码、server 路由与 SSE 事件名、MCP RPC 名 | ⬜ |
 | M68 | 协议层内部重构 1：`agui/converter.go` `Converter.Convert` 194 行 | 大 switch 按事件族拆 `convertXxx`，帧结构与事件序列零改动（P2 登记项） | ⬜ |
 | M69 | 弱覆盖层补测：`mcp/` + `bootstrap/` | 优先覆盖握手/重连/信任校验与启动装配顺序，只加测试不改行为 | ⬜ |
 | M70 | 协议契约文档与变更流程 | 按层产出 `docs/protocol-*.md`（锚定 M67 fixture）+ 契约变更流程（改帧必须同步 fixture/文档/review） | ⬜ |
@@ -1413,3 +1414,22 @@
   `go test -cover` 七层全通过（无失败包）；`make doc-check check-arch verify-layers debt-check metrics-trend` 通过
   （指标零变化：root 0/0/0/0/35/3、tui 0/0/0/0/10/0、desktop 全 0）
 - **提交**：c36254ee（docs + changelog；纯文档卡无代码提交）
+
+### M67-1（2026-11-28）协议护栏 1：AGUI + A2UI golden fixture ✅
+
+- **范围**：把 M66 基线 §3.2 / §3.3 的契约固化为失败即红的测试；**只加测试，零生产代码改动**
+- **交付**：
+  - `agui/contract_test.go`（4 组）：
+    - `TestContractAGUIEventTypeRegistry`——23 个事件类型常量与线上字符串逐一比对 + 重复检测 + 数量断言
+    - `TestContractAGUIEventJSONFields`——22 类事件逐字 golden JSON（字段名、字段顺序、`omitempty` 行为）
+    - `TestContractAGUIMessageIDSequence`——文本/思考切换后的 `msg_<n>` / `thinking_<n>` 递增规则
+    - `TestContractAGUISSEFrame`——`event: <TYPE>\ndata: <json>\n\n` 帧格式逐字比对
+  - `a2ui/contract_test.go`（4 组）：版本 `v0.9.1` + 基础目录 ID、四个信封 + 两种 dataModel 变体逐字 JSON、
+    JSONL 分帧（一行一信封）、AGUI CUSTOM 通道 `name="a2ui"` 与缺省版本补齐
+- **写法口径**：golden 值由临时生成器实测输出后固化，不手写猜测；断言用「期望 / 实际」双行 diff 便于定位
+- **覆盖增量**：`agui` 新增 4 组契约测试；`a2ui` 新增 4 组；两包原有用例原样通过（`go test -race ./agui ./a2ui` 全绿）
+- **发现分级**：P0 0 项；P3 1 项（`FromCustomEvent` 对「名为 a2ui 但无信封正文」的载荷返回 `ok=false` 而非报错，
+  属既有容错设计，测试按现状固化并加注释说明）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./agui/... ./a2ui/...` **0 issues**；
+  `go test -race ./agui ./a2ui` 全绿
+- **提交**：（待哈希回填）
