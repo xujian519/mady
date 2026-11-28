@@ -1412,6 +1412,7 @@
 - **发现分级**：P0 0 项；P2 1 项（resolver 载荷类型收敛，已登记）
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` **142** 用例全绿（91 + 51）；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+- **提交**：ffd1de60（refactor）、00979dbc（docs + changelog）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
