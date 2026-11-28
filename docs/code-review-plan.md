@@ -1340,4 +1340,4 @@
 - **配套**：`desktop/frontend/package.json.md5` 按 Wails 口径（`md5 -q package.json`）重算；`.github/dependabot.yml` 增补前端 `npm` 生态条目——此前只有根模块 gomod 被每周扫描，前端依赖长期无自动升级路径
 - **门禁**：`go build ./...` + `go vet ./...` 三模块全绿；`golangci-lint run ./...` 0 issues；`go test -race ./...` 唯一失败仍为预存 `knowledge/sqlite TestSearchLaws`（缺本机 `~/.mady/knowledge/laws-full.db`）；`go mod tidy -diff` 三模块无差异；前端 `pnpm typecheck` 0 error、`pnpm lint` 0 issue、`pnpm test` 91 + 51 全绿、`pnpm build` 成功
 - **发现分级**：P0 0 项；P3 1 项（本机 pnpm store 版本错配：`node_modules` 链接自 `store/v11`，pnpm 10.33.4 期望 `store/v11/v10`，`pnpm update` 直接报 `ERR_PNPM_UNEXPECTED_STORE`；以 `pnpm install --force` 重链后完成升级，属环境性问题、不入库）
-- **提交**：待回填
+- **提交**：7470f271（deps go）、208ae09b（deps desktop）、8a9ee13d（ci + docs）
