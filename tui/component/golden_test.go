@@ -173,3 +173,57 @@ func TestGoldenApprovalCard(t *testing.T) {
 		})
 	}
 }
+
+// --- Input（输入区）---
+
+// TestGoldenInput 覆盖输入区三种状态：空态占位符、CJK 多行折行（含光标）、
+// 以及带 Markdown 片段的长输入。输入区是每轮对话必经路径，折行错位会直接
+// 把光标放到错误的列上。
+func TestGoldenInput(t *testing.T) {
+	t.Run("input_placeholder_w40", func(t *testing.T) {
+		in := NewInput(nil)
+		in.SetPlaceholder("输入消息，/help 查看命令")
+		goldenMatch(t, "input_placeholder_w40", in.Render(40))
+	})
+
+	t.Run("input_cjk_multiline_w80", func(t *testing.T) {
+		in := NewInput(nil)
+		in.SetFocused(true)
+		in.SetValue("核对权利要求 1 的必要技术特征\n并给出修改建议：\n- 补充区别特征 B")
+		goldenMatch(t, "input_cjk_multiline_w80", in.Render(80))
+	})
+
+	t.Run("input_long_wrap_w40", func(t *testing.T) {
+		in := NewInput(nil)
+		in.SetFocused(true)
+		in.SetValue("请检索对比文件并逐项比对技术特征，输出差异表与结论。")
+		goldenMatch(t, "input_long_wrap_w40", in.Render(40))
+	})
+}
+
+// --- TodoPanel（任务面板 / plantask）---
+
+// TestGoldenTodoPanel 覆盖任务面板的四种状态图标与摘要计数，以及窄宽度下的
+// CJK 截断：plantask 事件（created/updated/interrupted）最终都汇入这里渲染。
+func TestGoldenTodoPanel(t *testing.T) {
+	items := []TodoItem{
+		{ID: "t1", Content: "读取对比文件 D1", Status: "completed", Priority: "high"},
+		{ID: "t2", Content: "逐项比对技术特征并记录差异", Status: "in_progress"},
+		{ID: "t3", Content: "撰写新颖性结论", Status: "pending", Priority: "medium"},
+		{ID: "t4", Content: "人工复核引用来源", Status: "canceled"},
+	}
+
+	t.Run("todo_panel_mixed_w60", func(t *testing.T) {
+		p := NewTodoPanel()
+		p.SetItems(items)
+		goldenMatch(t, "todo_panel_mixed_w60", p.Render(60))
+	})
+
+	t.Run("todo_panel_narrow_w40", func(t *testing.T) {
+		p := NewTodoPanel()
+		p.SetItems([]TodoItem{
+			{ID: "t1", Content: "逐项比对技术特征并记录差异（含附图标记核对与法条引用检查）", Status: "in_progress"},
+		})
+		goldenMatch(t, "todo_panel_narrow_w40", p.Render(40))
+	})
+}
