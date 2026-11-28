@@ -60,8 +60,8 @@
 
 **P1 建议专项（不改行为，但影响可维护性）**
 
-1. **静默吞错专项收敛**：✅ 已完成（M37-1～M37-6，307 处补注、零行为变更）。剩 1 处待人工处理：
-   - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀），按红线未改动；需人工确认该降级是否应改为传播错误。
+1. **静默吞错专项收敛**：✅ 已完成（M37-1～M37-6，307 处补注、零行为变更）。剩 1 处已由 M43 确认：
+   - `agentcore/permission/rule.go:97`——敏感路径（permission 前缀）。M43 取证确认为**理论风险、当前不可利用**（生产规则均工具粒度、不解析 args），仅补意图注释说明 fail-open 边界，零行为变更；经用户人工确认后放行。
 2. **忽略 err 收敛**：✅ 已完成（M39 23 → 8，M40 口径修正后 10，M41 逐条判定后 **0**）。M39 处理的 `mcp`/`tools`/`domains`/`example`/`agentcore` 均归零；M40 识别出的 10 处真实可疑忽略由 M41 收口：6 处补 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免（见 P2-9）。
 3. **长函数**（>120 行）44 处：根模块 34、`tui/` 10。其中 `tui/` 已逐条登记（如 `layout/flex.go renderHorizontal`、`theme/palette.go BuildPalette`、`overlay_render.go composeOverlays`、`tui_render.go renderFrame`、`component/review_gate.go renderLocked` 等）。
 4. **大文件拆解候选**（保守档仅记录）：

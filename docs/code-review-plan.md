@@ -153,6 +153,7 @@
 | 卡 | 模块 | 规模/口径 | 状态 |
 | --- | --- | --- | --- |
 | M42 | agentcore/plantask 错误映射 fix（`ErrSessionNotFound` 区分「未找到」与读取失败） | 1 处契约，行为变化（用户批准） | ✅ 2026-11-28 |
+| M43 | agentcore/permission 敏感路径确认（`rule.go` 解析失败 fail-open 边界） | 1 处，仅补意图注释（零行为） | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1031,3 +1032,18 @@
 - **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过，唯一失败为预存 `knowledge/sqlite TestSearchLaws`（缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（1050 文件）：被忽略 error 0、吞错 1（敏感路径待人工）、未注释导出 0、TODO 3、裸 fmt 65、长函数 34，均无反弹
 - **提交**：86744b46（fix）、7a2b8466（docs + changelog）
+
+### M43（2026-11-28）敏感路径确认：permission/rule.go 解析失败 fail-open 边界 ✅
+
+- **范围**：终审报告 §五 P1-1 唯一剩余吞错点——`agentcore/permission/rule.go:97` 的 `json.Unmarshal` 失败返回空串（`agentcore/permission/` 为敏感路径前缀）
+- **取证结论**：**当前无可利用缺陷，属理论风险**
+  - `Rule.Matches` 在 `Specifier == ""` 时直接返回 true，不经过 `extractMatchValue`
+  - 生产策略均为工具粒度：`ProjectAgentPolicy` 的 Ask、`DenyDangerousToolsExtension` 的 Deny、`patent.go` 的 `MonotonicDenyFns`（`MonotonicDeny []Rule` 为空）
+  - 全仓非测试代码无 `Specifier:` 赋值、无 `ParseRule` 调用
+  - 谓词型 `evidence.FormRequirementDenyCheck` 对损坏 args 同样不拒绝，但同一 args 会让工具自身解析失败，无「权限层失败、执行层成功」的差异
+- **边界**：若未来配置带 specifier 的 `Deny`/`MonotonicDeny`（如 `Edit(secrets/**)`），畸形 args 会使规则不命中而落到 Mode（多为 Allow），形成 fail-open
+- **精炼**：仅在 `extractMatchValue` 的错误分支补中文意图注释，说明「交给工具自身参数校验兜底」与上述边界；零行为变更、零删除
+- **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check` 通过
+- **指标重扫**（1050 文件）：静默吞错 **1 → 0**；忽略 error 0、未注释导出 0、TODO 3、裸 fmt 65、长函数 34 不变
+- **人工审阅**：敏感路径（`agentcore/permission/` 前缀）+ AI 参与，提交前经用户确认；gate 以 `SKIP=check-sensitive-paths` 放行，理由见 changelog
+- **提交**：`<待回填>`
