@@ -11,6 +11,7 @@ import "github.com/xujian519/mady/evaluate"
 // PatentExamRealA22Cases contains test cases for patent law Article 22 (A22)
 // from the 2007-2019 patent agent qualification exam.
 var PatentExamRealA22Cases = []evaluate.TestCase{
+	// ---- 2007–2011 年（5 题）----
 	{
 		ID:     "patent_exam_2007_a22_01",
 		Domain: "patent",
@@ -155,6 +156,7 @@ var PatentExamRealA22Cases = []evaluate.TestCase{
 		Expected:          `2011年真题第二题。第一、二实施方式可概括为一个独立权利要求（瓶盖本体+盖栓+限制盖栓受压时向隔挡片方向运动的机构）。第三实施方式（拉环结构）与前两个实施方式发明构思不同，应另案申请。`,
 		RequiredCitations: []string{},
 	},
+	// ---- 2014–2015 年（3 题）----
 	{
 		ID:     "patent_exam_2014_a22_01",
 		Domain: "patent",
@@ -302,6 +304,7 @@ var PatentExamRealA22Cases = []evaluate.TestCase{
 创造性分析要点：最接近现有技术可以选择涉案专利或对比文件2，三步法分析——区别特征所要解决的技术问题不同，对比文件均未给出技术启示。`,
 		RequiredCitations: []string{},
 	},
+	// ---- 2016–2019 年（7 题）----
 	{
 		ID:     "patent_exam_2016_a22_01",
 		Domain: "patent",
