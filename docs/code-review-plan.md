@@ -161,6 +161,7 @@
 | M48 | 护栏卡：example/ + evaluate/ 拆解前补特征测试 | 新增 2 个测试文件（CLI 纯函数 7 组、数据集 15 条体检） | ✅ 2026-11-28 |
 | M49 | 大文件拆解卡 2：`example/cli-chat/main.go` 979 行 | 主循环留 main.go，装配/工具/思考/纯函数拆 4 文件，零行为变更 | ✅ 2026-11-28 |
 | M50 | 大文件拆解卡 3：`domains/evidence/statutory.go` 848 行 | 模型与编排留原文件，种类/取得方式贡献拆 2 文件，零行为变更 | ✅ 2026-11-28 |
+| M51 | 大文件拆解卡 4：`domains/figure/generate/dot.go` 822 行 | 类型留原文件，构建/渲染/模板拆 3 文件，零行为变更 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1161,3 +1162,18 @@
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **推送**：远端 main 已前进（dependabot 升级 goldmark/gopdf），以 `git merge origin/main` 同步（不改写 main 历史，未用 rebase），合并后复跑 build/vet/lint/`go mod tidy -diff`/test-race 全绿再推送
 - **提交**：cefbe491（refactor）、890e441f（docs + changelog）
+
+### M51（2026-11-28）大文件拆解卡 4：`domains/figure/generate/dot.go` ✅
+
+- **范围**：`domains/figure/generate/dot.go` 822 行，包内已有 12 个测试文件（含 `dot_test.go` 292 行）作护栏
+- **方法**：纯声明块搬迁；类型/选项/校验留原文件，按「四类图构建 / 页面渲染 / 内置模板」拆出三个文件
+- **拆分结果**：
+  - `dot.go` 371 行 — 包注释、Style/Engine/Format/ErrorCode 常量与校验、`Error`/`newError`、标号系列常量、`Next`/`Step`/`Block`/`Connection`/`HierarchyNode`/`State`/`Transition`/`PageOptions`/`Options`、`AssignNumerals`、ID 清洗与标签转义、共享辅助（`indexSteps`/`assignFor`/`fontOf`）
+  - `dot_build.go` 287 行 — `BuildFlowchart`/`BuildBlockDiagram`/`BuildHierarchy`/`BuildStateDiagram` 与边/形状辅助
+  - `dot_render.go` 92 行 — 页面尺寸、`pageAttributeLines`、`formatInches`、`buildHeader`
+  - `dot_templates.go` 85 行 — `TemplateName` 常量、`AllTemplates`、`Template`
+- **等价性验证**：拆分前后 gofmt 行多重集 **754 = 754 零差异**（包注释完整留在 `dot.go` 头部）；`go test -count=1 ./domains/figure/generate/` 通过
+- **指标**：非测试源文件 1229 → 1232（+3）；`long_funcs` 35 不变（该文件无 >120 行函数）；其余指标不变，`metrics-trend` 通过；`CLAUDE.md` 计数由 `doc-check --update` 同步
+- **发现分级**：P0 0 项；P2 0 项（本次无孤立注释丢失——切块前已按 M50 教训检查头部）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **提交**：待回填
