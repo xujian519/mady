@@ -1366,4 +1366,4 @@
 - **连带清理**：主组件不再使用的 `Sun`/`Server`/`Brain`/`Info`/`Plug` 五个图标导入已移除（仅保留 `X`、`Check`、`AlertCircle`），`setActiveSection` 直接作为 `onSelect` 传入
 - **门禁**：`pnpm typecheck` 0 error；`pnpm lint` 0 issue；`pnpm test` 91 + 51 全绿（M59 的五分区导航断言原样通过）；`pnpm build` 成功
 - **发现分级**：P0 0 项；P3 0 项
-- **提交**：待回填
+- **提交**：a64ba714（refactor）、8cd13df1（docs + changelog）
