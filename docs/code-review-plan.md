@@ -160,6 +160,7 @@
 | M47 | 大文件拆解卡 1：`domains/figure/generate/check.go` 981 行 | 纯声明块搬迁为 4 文件（174/489/213/123），零行为变更 | ✅ 2026-11-28 |
 | M48 | 护栏卡：example/ + evaluate/ 拆解前补特征测试 | 新增 2 个测试文件（CLI 纯函数 7 组、数据集 15 条体检） | ✅ 2026-11-28 |
 | M49 | 大文件拆解卡 2：`example/cli-chat/main.go` 979 行 | 主循环留 main.go，装配/工具/思考/纯函数拆 4 文件，零行为变更 | ✅ 2026-11-28 |
+| M50 | 大文件拆解卡 3：`domains/evidence/statutory.go` 848 行 | 模型与编排留原文件，种类/取得方式贡献拆 2 文件，零行为变更 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1144,3 +1145,18 @@
 - **发现分级**：P0 0 项；P2 1 项（别名导入需手工补，已记录）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **提交**：4191ce3c（refactor）、4b099b7c（docs + changelog）
+
+### M50（2026-11-28）大文件拆解卡 3：`domains/evidence/statutory.go` ✅
+
+- **范围**：`domains/evidence/statutory.go` 848 行，包内已有 `statutory_test.go` 等 8 个测试文件作护栏
+- **方法**：纯声明块搬迁；模型与编排留原文件，按「证据种类贡献 / 取得方式贡献」拆出两个文件
+- **拆分结果**：
+  - `statutory.go` 439 行 — 类型/常量（`EvidenceKind`、`StatutoryEvidenceInput`、`StatutoryFinding`、`StatutoryAssessment`）、`declaredBool` 状态机、`statutoryCheck`、`AssessStatutoryEvidence` 编排、维度/等级/推理输出
+  - `statutory_kinds.go` 333 行 — 八类法定证据的贡献函数（书证/物证/视听/电子/证人/当事人陈述/鉴定/勘验）、`originalCheck`、`kindDelta`
+  - `statutory_acquisition.go` 64 行 — `acquisitionStatutoryContributions`（15 类取证场景）
+- **等价性验证**：拆分前后 gofmt 行多重集 **780 = 780 零差异**；`go test -race ./domains/evidence/` 全绿
+- **口径注意（登记）**：与 M47 同类——文件头「双轴模型」概述注释与首个声明之间有空行，切块脚本首轮丢失 14 行，已补回；补回时因重复纳入 `StatutoryToolName` 注释一度多出 1 行，去重后零差异。**结论：切块脚本应显式收集「头部到首个声明之间的孤立注释」，并在拆分后用行多重集比对兜底**
+- **指标**：非测试源文件 1227 → 1229（+2，`statutory.go` 保留）；`long_funcs` 35 不变（该文件无 >120 行函数）；其余指标不变，`metrics-trend` 通过；`AGENTS.md` 计数由 `doc-check --update` 同步
+- **发现分级**：P0 0 项；P2 1 项（孤立注释处理，已修复并记录方法）
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **提交**：待回填
