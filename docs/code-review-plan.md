@@ -1111,4 +1111,4 @@
 - **指标**：Go 源文件 1050 → 1053（+3，未设阈值）；`long_funcs` 35 不变（`scanSVG` 232 / `parsePath` 145 仍超限，清单行已更新为新路径与行号）；其余指标不变
 - **发现分级**：P0 0 项；P2 1 项（上述注释丢失，已修复并记录方法）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
-- **提交**：待回填
+- **提交**：89785231（refactor）、3a28c9c8（docs + changelog）
