@@ -184,6 +184,7 @@
 | M71 | 阶段 7/8 遗留收口 | 前端 Wails 桥接 `any` 7 → 0（新增 `src/types/wails.d.ts`）；报告长函数 / 大文件拆解 / 事实源数字校正 | ✅ 2026-11-28 |
 | M72 | AGUI 载荷类型收敛 | `AguiEventPayload = any` → 20 个事件的载荷映射（`agui-bridge/payloads.ts`），前端 `any` 归零 | ✅ 2026-11-28 |
 | M73 | 跨语言事件名契约护栏 | 新增 `desktop/agui_wails_contract_test.go`：后端映射表 ↔ 前端订阅/处理器/载荷三处键集合自动比对 | ✅ 2026-11-28 |
+| M74 | 工具 inputSchema 固化 | 新增 `tools/schema_contract_test.go` + golden：31 个内置工具 Parameters 快照，任何形状变化测试即红 | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1462,6 +1463,28 @@
 - **门禁**：`cd desktop && go build ./... && go vet ./...` 全绿；`go test -race ./...`（desktop 模块）全绿；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（AGENTS.md 计数同步 1881 = 1236 + 645）
 - **提交**：51f2b7a3（test）、c6a80ae2（docs + changelog）
+### M74（2026-11-28）内置工具 inputSchema golden 固化 ✅
+
+- **范围**：工具 `Parameters` 会原样进入模型请求，是 LLM 侧最硬的契约（字段改名/类型变化/required 增删
+  都会让模型调用失败或漂移），且**不会编译报错**；此前无任何护栏。本卡只加测试，零生产代码改动
+- **交付**：
+  - 新增 `tools/schema_contract_test.go`：调用 `BuildTools(ExtensionConfig{WorkingDir: "/workspace"})`
+    收集 name → Parameters，`json.MarshalIndent` 后与 golden 逐字比对；固定 WorkingDir 避免临时目录名
+    进入快照造成不稳定；顺带断言工具名唯一、无 nil 工具
+  - 新增 `tools/testdata/tool_schemas.golden.json`（601 行，**31 个工具**）：bash / read / edit / write_file /
+    patch / ls / glob / grep / find / delete / move / view / process / ocr / office_to_pdf / vision_analyze /
+    git_status / git_diff / git_log / web_search / web_fetch / scholar_search / paper_* 3 个 /
+    patent_lookup / patent_document / patent_download / patent_legal / patent_web_search / cnipr_search
+  - 更新入口：`go test ./tools -run TestContractToolSchemas -count=1 -args -update`；不一致时按
+    「golden 有而当前无（疑似误删）/ 当前有而 golden 无（须更新 fixture）」分别报错
+- **负控制**：把 golden 中 delete 工具的 `"path"` 改名为 `"path_typo"`，测试立即失败并给出更新命令；
+  恢复后全绿
+- **确定性核查**：golden 中无绝对路径、无 `MACHINE` 相关环境值（grep `/Users`、`var/folders`、
+  `deepseek`/`glm-`/`MADY_` 均 0 命中），连续两次生成字节一致
+- **发现分级**：P0 0 项；P2 0 项
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./tools/...` **0 issues**；
+  `go test -race ./tools` 全绿；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
+  （AGENTS.md / CLAUDE.md 计数同步 1882 = 1236 + 646）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 

@@ -121,4 +121,5 @@ git diff --stat                                  # deletions 必须为 0，新�
 4. ~~大文件拆解另立计划~~ ✅ 已由阶段 8（M47–M65）执行完毕：Go 5 个候选拆分 / 1 个保留（M53），前端 5 个候选全部拆分；拆分前先补特征测试（M48/M54/M57–M59），零行为变更。
 5. ~~把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）~~ ✅ M46 已完成：基线单源 `docs/code-health/metrics-baseline.json`，`scripts/check_metrics_trend.py` 高于基线即失败、低于基线可棘轮下压、基线缺失 fail-closed；接入 `make verify` 与 CI `metrics-trend` job，并有 3 个红绿负控制用例（`scripts/gatechecks/`）。
 6. ~~依赖升级另立一卡~~ ✅ M63 已完成：Go 根模块 6 项直接依赖升到同主版本最新 patch/minor，前端 26 项在 semver 范围内升级，三模块与前端门禁全绿；`chromedp`（0.x minor 破坏性区间）与 `onnxruntime_purego`（与本地原生库耦合）登记暂缓，大版本迁移（React 19 / vite 8 / vitest 5 / TS 7）不在本轮范围。同时补齐 `.github/dependabot.yml` 的前端 `npm` 生态条目——此前只有根模块 gomod 被每周扫描。
-7. **协议面契约无护栏** → 阶段 9 立项（M66–M70）。M66 完成七层契约基线取证；M67 起把事件类型、JSON-RPC 方法、错误码、SSE/WS 帧固化为 golden fixture，任何契约漂移测试即红；M70 补齐按层协议文档与契约变更流程。协议层内部重构（M68）与弱覆盖补测（M69）不得改变任何帧结构。
+7. ~~**协议面契约无护栏**~~ ✅ 阶段 9 已收口（M66–M70）。M66 完成七层契约基线取证；M67 起把事件类型、JSON-RPC 方法、错误码、SSE/WS 帧固化为 golden fixture，任何契约漂移测试即红；M70 补齐按层协议文档与契约变更流程。协议层内部重构（M68）与弱覆盖补测（M69）不得改变任何帧结构。
+8. ~~**工具 `inputSchema` 无护栏**~~ ✅ M74 已收口：`tools/schema_contract_test.go` + `tools/testdata/tool_schemas.golden.json` 固化 31 个内置工具的 `Parameters`，字段改名/类型变化/required 增删即红；更新入口 `go test ./tools -run TestContractToolSchemas -count=1 -args -update`。
