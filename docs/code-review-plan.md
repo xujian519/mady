@@ -1461,6 +1461,7 @@
 - **发现分级**：P0 0 项；P2 0 项（未发现既有漂移，说明 M72 落地后两侧已一致）
 - **门禁**：`cd desktop && go build ./... && go vet ./...` 全绿；`go test -race ./...`（desktop 模块）全绿；
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿（AGENTS.md 计数同步 1881 = 1236 + 645）
+- **提交**：51f2b7a3（test）、c6a80ae2（docs + changelog）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
