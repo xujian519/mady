@@ -1509,6 +1509,7 @@
   `theme TestDetectColorModeAppleTerminal`（需 `TERM_PROGRAM=Apple_Terminal`），本机 `TERM=dumb` 下必失败，
   与本卡无关、不修；`make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
   （AGENTS.md / CLAUDE.md 计数同步 1883 = 1236 + 647）
+- **提交**：1d93d051（test）、efd5d2cf（docs + changelog）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
