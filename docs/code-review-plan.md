@@ -163,6 +163,7 @@
 | M50 | 大文件拆解卡 3：`domains/evidence/statutory.go` 848 行 | 模型与编排留原文件，种类/取得方式贡献拆 2 文件，零行为变更 | ✅ 2026-11-28 |
 | M51 | 大文件拆解卡 4：`domains/figure/generate/dot.go` 822 行 | 类型留原文件，构建/渲染/模板拆 3 文件，零行为变更 | ✅ 2026-11-28 |
 | M52 | 大文件拆解卡 5：`domains/figure/generate/tool.go` 773 行 | 工具入口留原文件，schema/执行渲染/路径解析拆 3 文件 | ✅ 2026-11-28 |
+| M53 | 大文件拆解收尾：`evaluate/benchmark/patent_exam_real_a22.go` 619 行 | 判定保留单文件（一法条一文件惯例），仅补三段年份注释 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1194,3 +1195,15 @@
 - **发现分级**：P0 0 项；P2 1 项（切块脚本初始输出键，已修复并记录）
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
 - **提交**：15eb963f（refactor）、c3ca94cf（docs + changelog）
+
+### M53（2026-11-28）大文件拆解收尾：`evaluate/benchmark/patent_exam_real_a22.go` ✅
+
+- **取证**：该文件 619 行、15 条真题，内部覆盖 2007–2019；同目录 `a2`/`a26`/`a26_3`/`a31`/`a33`/`r42` 均为「一法条一文件」，数据集已按法条而非年份组织
+- **判定**：**不按年份拆**。按年份拆会与兄弟文件组织方式不一致，且单一导出变量 `PatentExamRealA22Cases` 需改为聚合两个切片，多一层间接、收益低。经用户确认改为「保留单文件 + 年份分段注释」
+- **改动**：在数据集内插入 3 段注释——`2007–2011 年（5 题）`、`2014–2015 年（3 题）`、`2016–2019 年（7 题）`；零结构改动、零行为变更
+- **验证**：M48 的 15 条数据集体检通过（条数/ID 形态/Domain/非空/唯一）；`go test -count=1 ./evaluate/benchmark/` 通过
+- **指标**：非测试源文件 1235（+0，未新增文件）；气味指标零变化，`metrics-trend` 通过
+- **发现分级**：P0 0 项；P2 0 项
+- **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 129 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过
+- **阶段 8 收尾状态**：Go 侧大文件候选（check.go / cli-chat main.go / statutory.go / dot.go / tool.go / a22 数据集）全部处置完毕；前端 5 个大文件（`ProjectTree.tsx` 879 等）仍按保守档只记录不拆
+- **提交**：待回填
