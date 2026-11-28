@@ -2,7 +2,7 @@
 
 - 计划文档：`docs/code-review-plan.md`
 - 计划启动：2026-08-25；审阅收官：2026-11-13
-- 执行档位：**保守档**（只做无行为变化的清理；不拆大文件、不动架构、不升级依赖）
+- 执行档位：**保守档**（只做无行为变化的清理；不拆大文件、不动架构、不升级依赖）——M63 按用户指令单独立「依赖升级卡」，范围限定同主版本 patch/minor，大版本迁移仍排除在外
 - 覆盖范围：根模块 Go、`tui/` 独立子模块（Go）、`desktop/` 独立子模块（Go 后端 + React/TS 前端）
 - 日卡：M01–M36 + 阶段 7 专项（M37-1～M37-6、M38、M39、M40、M41）全部完成
 
@@ -119,3 +119,4 @@ git diff --stat                                  # deletions 必须为 0，新�
 3b. ~~**可疑忽略 fix 卡**（建议下一张）~~ ✅ 已完成（M41）：10 处逐条判定并清零，6 处改为 `slog.Warn`、2 处改 `strconv.Atoi`、2 处按库语义 `scan-ignore` 豁免。
 4. 大文件拆解另立计划（需行为等价重构 + 完整测试护栏），不建议并入保守档。
 5. ~~把本报告 §二 的指标表固化进 CI 趋势看板，防止指标反弹（重点防吞错注释被回退、未注释导出新增）~~ ✅ M46 已完成：基线单源 `docs/code-health/metrics-baseline.json`，`scripts/check_metrics_trend.py` 高于基线即失败、低于基线可棘轮下压、基线缺失 fail-closed；接入 `make verify` 与 CI `metrics-trend` job，并有 3 个红绿负控制用例（`scripts/gatechecks/`）。
+6. ~~依赖升级另立一卡~~ ✅ M63 已完成：Go 根模块 6 项直接依赖升到同主版本最新 patch/minor，前端 26 项在 semver 范围内升级，三模块与前端门禁全绿；`chromedp`（0.x minor 破坏性区间）与 `onnxruntime_purego`（与本地原生库耦合）登记暂缓，大版本迁移（React 19 / vite 8 / vitest 5 / TS 7）不在本轮范围。同时补齐 `.github/dependabot.yml` 的前端 `npm` 生态条目——此前只有根模块 gomod 被每周扫描。

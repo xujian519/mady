@@ -10,6 +10,19 @@ updates:
       prefix: "deps"
       include: "scope"
 
+  # 桌面端前端依赖（pnpm-lock.yaml）。此前仅有根模块 gomod 条目，
+  # 前端依赖长期无自动升级路径；tui/desktop 的 go.mod 直接依赖与根模块同源，
+  # desktop 的 systray 走 third_party 本地 replace，故不单列 gomod 条目。
+  - package-ecosystem: "npm"
+    directory: "/desktop/frontend"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

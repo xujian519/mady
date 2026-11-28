@@ -173,6 +173,7 @@
 | M60 | 前端拆解卡 3：`lib/backend.ts` 569 行 | 按 runtime/conversation/workspace 三域拆分，`backend.ts` 转为 15 行聚合入口 | ✅ 2026-11-28 |
 | M61 | 前端拆解卡 4：`chat/Composer.tsx` 473 行 | 草稿/历史持久化与本地命令拦截迁 `chat/composer/`，主组件 391 行 | ✅ 2026-11-28 |
 | M62 | 前端拆解卡 5：`SettingsPanel.tsx` 448 行 | 外观与关于分区迁 `settings/`（59 + 81），主组件 377 行 | ✅ 2026-11-28 |
+| M63 | 依赖升级卡：Go 根模块 6 项 + 前端 26 项 | 同主版本 patch/minor；chromedp/onnxruntime 暂缓；补 dependabot npm 覆盖 | ✅ 2026-11-28 |
 
 
 ## 六、基线（2026-08-25 实测）
@@ -1321,3 +1322,22 @@
 - **门禁**：`npx tsc --noEmit` 0 error；`npx eslint src/` 0 issue；`npm test` 全绿——纯逻辑 91 例 + 组件 51 例（共 142）
 - **发现分级**：P0 0 项；P3 1 项（用 python 定位分区末尾 `</div>` 时命中位置偏移，残留旧 JSX 引发 `TS17002`，已加断言并以精确行号删除修正；教训：按标签文本匹配替换 JSX 时须先断言命中数，替换后用 `tsc` 兜底）
 - **提交**：ddbc153c（refactor）、866a17db（docs + changelog）
+
+### M63（2026-11-28）依赖升级卡：Go 根模块 6 项 + 前端 26 项 ✅
+
+- **取证**：三模块 `go list -m -u` + 前端 `pnpm outdated`。`tui/`、`desktop/` 的直接依赖均无待升级项（与根模块同源，desktop 的 `systray` 走 `third_party` 本地 replace）；待升级集中在根模块直接依赖与前端 `package.json`。
+- **Go 升级（同主版本 patch/minor，6 项直接依赖）**：
+  - `PuerkitoBio/goquery` v1.13.0 → v1.14.0（带动 `cascadia` 1.3.4 → 1.3.5）
+  - `sky-valley/pi` v1.6.32 → v1.6.33
+  - `xuri/excelize/v2` v2.11.0 → v2.11.1（带动 `efp`、`mscfb` 1.0.7 → 1.0.9）
+  - `otel/exporters/stdout/stdouttrace` v1.46.0 → v1.47.0（消除与其余 otel 组件的版本错位）
+  - `golang.org/x/image` v0.47.0 → v0.48.0
+  - `modernc.org/sqlite` v1.61.1 → v1.63.0（带动 `libc` 1.79.0 → 1.80.1）
+- **暂缓（登记理由）**：
+  - `chromedp/chromedp` v0.23.0 → v0.24.0（含 `cdproto` 0.159 → 0.160）：0.x 的 minor 属破坏性区间，2026-10-28 曾因 0.16 → 0.21 的泛型 `Action[T]` 重写导致全仓构建失败，需单独立卡做迁移
+  - `getcharzp/onnxruntime_purego` v1.26.0 → v1.28.0：版本号与本地 ONNX Runtime 原生库耦合，测试环境无模型与共享库，升级无法自动验证
+- **前端升级（26 项，全部在 semver 范围内）**：CodeMirror 五个包 + `@lezer/highlight`、`@tanstack/react-query`、`@tanstack/react-virtual`、`framer-motion` 11.18.2、`pdfjs-dist` 6.5.438、`zustand` 5.1.0；devDependencies 侧 `@playwright/test` 1.65.1、`@tailwindcss/vite` 与 `tailwindcss` 4.3.5、三个 testing-library、`@types/react`/`@types/react-dom`、`@vitejs/plugin-react` 4.7.0、`eslint` 10.16.0、`globals` 17.14.0、`jsdom` 30.1.3、`typescript` 5.9.3、`typescript-eslint` 8.74.0、`vite` 5.4.21。主版本落后的（React 19、framer-motion 14、vite 8、vitest 5、lucide 1.x、TS 7）不升
+- **配套**：`desktop/frontend/package.json.md5` 按 Wails 口径（`md5 -q package.json`）重算；`.github/dependabot.yml` 增补前端 `npm` 生态条目——此前只有根模块 gomod 被每周扫描，前端依赖长期无自动升级路径
+- **门禁**：`go build ./...` + `go vet ./...` 三模块全绿；`golangci-lint run ./...` 0 issues；`go test -race ./...` 唯一失败仍为预存 `knowledge/sqlite TestSearchLaws`（缺本机 `~/.mady/knowledge/laws-full.db`）；`go mod tidy -diff` 三模块无差异；前端 `pnpm typecheck` 0 error、`pnpm lint` 0 issue、`pnpm test` 91 + 51 全绿、`pnpm build` 成功
+- **发现分级**：P0 0 项；P3 1 项（本机 pnpm store 版本错配：`node_modules` 链接自 `store/v11`，pnpm 10.33.4 期望 `store/v11/v10`，`pnpm update` 直接报 `ERR_PNPM_UNEXPECTED_STORE`；以 `pnpm install --force` 重链后完成升级，属环境性问题、不入库）
+- **提交**：待回填
