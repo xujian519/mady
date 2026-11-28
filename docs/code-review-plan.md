@@ -1062,4 +1062,4 @@
 - **结果**：库代码裸 fmt 65 → **0**（指标达成）；`cli_fmt` 179 显式可见（cmd 96 + example 83）；静默吞错 **1 → 0**；被忽略 error 0、未注释导出 0、TODO 3、长函数 34 不变
 - **发现分级**：P0 0 项；P2 1 项（M43 吞错口径与实际计数不符，本卡更正并补注）
 - **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`，缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
-- **提交**：待回填
+- **提交**：39deba2e（refactor）、3b1f5c97（docs + changelog）
