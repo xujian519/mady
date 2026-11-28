@@ -218,84 +218,37 @@ func (c *Converter) buildContextUsage(t time.Time) ContextUsageEvent {
 }
 
 // Convert translates an agentcore event into one or more AGUI events.
+//
+// 按事件族分发：run（start/end/error）、step（turn start/end）、消息增量、
+// 工具调用、handoff、compaction、auto retry，其余落 default 的 CUSTOM 透传。
+// 值形态与指针形态都要覆盖：订阅方两种构造方式并存，少一支就会把事件错送进
+// default 分支、改变线上事件序列。
 func (c *Converter) Convert(e agentcore.Event) []any {
 	switch ev := e.(type) {
 	case agentcore.AgentStartEvent:
-		return []any{c.RunStarted(ev.EventTime())}
+		return c.convertRunStarted(ev.EventTime())
 	case *agentcore.AgentStartEvent:
-		return []any{c.RunStarted(ev.EventTime())}
+		return c.convertRunStarted(ev.EventTime())
 
 	case agentcore.AgentEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output, ev.FinishReason))
-		return events
+		return c.convertAgentEnd(ev.EventTime(), ev.Output, ev.FinishReason)
 	case *agentcore.AgentEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.RunFinishedWithSuccess(ev.EventTime(), ev.Output, ev.FinishReason))
-		return events
+		return c.convertAgentEnd(ev.EventTime(), ev.Output, ev.FinishReason)
 
 	case agentcore.AgentErrorEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.RunError(ev.EventTime(), ev.Err))
-		return events
+		return c.convertAgentError(ev.EventTime(), ev.Err)
 	case *agentcore.AgentErrorEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.RunError(ev.EventTime(), ev.Err))
-		return events
+		return c.convertAgentError(ev.EventTime(), ev.Err)
 
 	case agentcore.TurnStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, StepStartedEvent{
-			BaseEvent: baseEvent(EventStepStarted, ev.EventTime()),
-			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
-		})
-		return events
+		return c.convertTurnStart(ev.EventTime(), ev.Turn)
 	case *agentcore.TurnStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, StepStartedEvent{
-			BaseEvent: baseEvent(EventStepStarted, ev.EventTime()),
-			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
-		})
-		return events
+		return c.convertTurnStart(ev.EventTime(), ev.Turn)
 
 	case agentcore.TurnEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+2)
-		events = append(events, closeEvents...)
-		events = append(events, StepFinishedEvent{
-			BaseEvent: baseEvent(EventStepFinished, ev.EventTime()),
-			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
-		})
-		c.accumulateUsage(ev.Usage, ev.EventTime())
-		if c.totalTokens > 0 {
-			events = append(events, c.buildContextUsage(ev.EventTime()))
-		}
-		return events
+		return c.convertTurnEnd(ev.EventTime(), ev.Turn, ev.Usage)
 	case *agentcore.TurnEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+2)
-		events = append(events, closeEvents...)
-		events = append(events, StepFinishedEvent{
-			BaseEvent: baseEvent(EventStepFinished, ev.EventTime()),
-			StepName:  fmt.Sprintf("turn_%d", ev.Turn),
-		})
-		c.accumulateUsage(ev.Usage, ev.EventTime())
-		if c.totalTokens > 0 {
-			events = append(events, c.buildContextUsage(ev.EventTime()))
-		}
-		return events
+		return c.convertTurnEnd(ev.EventTime(), ev.Turn, ev.Usage)
 
 	case agentcore.MessageDeltaEvent:
 		return c.convertMessageDelta(ev.EventTime(), ev.Delta, ev.Kind)
@@ -303,95 +256,39 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		return c.convertMessageDelta(ev.EventTime(), ev.Delta, ev.Kind)
 
 	case agentcore.ToolCallStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+2)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertToolCallStart(ev.EventTime(), ev.ToolCall)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertToolCallStart(ev.EventTime(), ev.ToolCall))
 	case *agentcore.ToolCallStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+2)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertToolCallStart(ev.EventTime(), ev.ToolCall)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertToolCallStart(ev.EventTime(), ev.ToolCall))
 
 	case agentcore.ToolCallEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+2)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertToolCallEnd(ev.EventTime(), ev.ToolCallID, ev.ToolName, ev.Result, ev.Err)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertToolCallEnd(ev.EventTime(), ev.ToolCallID, ev.ToolName, ev.Result, ev.Err))
 	case *agentcore.ToolCallEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+2)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertToolCallEnd(ev.EventTime(), ev.ToolCallID, ev.ToolName, ev.Result, ev.Err)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertToolCallEnd(ev.EventTime(), ev.ToolCallID, ev.ToolName, ev.Result, ev.Err))
 
 	case agentcore.HandoffStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertHandoffStart(ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertHandoffStart(ev))
 	case *agentcore.HandoffStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertHandoffStart(*ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertHandoffStart(*ev))
 
 	case agentcore.HandoffEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertHandoffEnd(ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertHandoffEnd(ev))
 	case *agentcore.HandoffEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertHandoffEnd(*ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertHandoffEnd(*ev))
 
 	case agentcore.CompactionStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertCompactionStart(ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertCompactionStart(ev))
 	case *agentcore.CompactionStartEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertCompactionStart(*ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertCompactionStart(*ev))
 
 	case agentcore.CompactionEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertCompactionEnd(ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertCompactionEnd(ev))
 	case *agentcore.CompactionEndEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertCompactionEnd(*ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertCompactionEnd(*ev))
 
 	case agentcore.AutoRetryEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertAutoRetry(ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertAutoRetry(ev))
 	case *agentcore.AutoRetryEvent:
-		closeEvents := c.closeAll(ev.EventTime())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, c.convertAutoRetry(*ev)...)
-		return events
+		return c.afterClose(ev.EventTime(), c.convertAutoRetry(*ev))
 
 	case *agentcore.A2UIEvent:
 		return []any{CustomEvent{
@@ -401,14 +298,12 @@ func (c *Converter) Convert(e agentcore.Event) []any {
 		}}
 
 	default:
-		closeEvents := c.closeAll(time.Now())
-		events := make([]any, 0, len(closeEvents)+1)
-		events = append(events, closeEvents...)
-		events = append(events, CustomEvent{
+		// 未映射事件透传为 CUSTOM：收尾与自定义事件各自采样一次当前时间
+		// （保持既有行为，两处时间戳独立取值）。
+		return c.afterClose(time.Now(), []any{CustomEvent{
 			BaseEvent: baseEvent(EventCustom, time.Now()),
 			Name:      string(e.EventKind()),
 			Value:     e,
-		})
-		return events
+		}})
 	}
 }
