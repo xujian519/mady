@@ -1030,4 +1030,4 @@
 - **测试**：新增 `TestLoadSession_IOErrorPropagates`（注入 IO 错误，断言原样上抛且非 `ErrNoActiveSession`）；既有 `TestNoActiveSession` 仍通过
 - **门禁**：`gofmt` 干净；`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过，唯一失败为预存 `knowledge/sqlite TestSearchLaws`（缺本机 `laws-full.db`）；`make check-arch doc-check verify-layers debt-check` 通过（src=1220 / test=632 / 子命令 17 / manifests 3 / LAYERS.md 131 / 事实源 61 条）
 - **指标重扫**（1050 文件）：被忽略 error 0、吞错 1（敏感路径待人工）、未注释导出 0、TODO 3、裸 fmt 65、长函数 34，均无反弹
-- **提交**：`<待回填>`
+- **提交**：86744b46（fix）、7a2b8466（docs + changelog）
