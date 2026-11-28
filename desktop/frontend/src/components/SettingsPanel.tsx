@@ -15,10 +15,11 @@ import { getAISettings, setAISettings, checkUpdate, health } from '@/lib/backend
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import type { UpdateInfo } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, Sun, Server, Cpu, Check, AlertCircle, Brain, Info, Plug } from 'lucide-react'
+import { X, Sun, Server, Check, AlertCircle, Brain, Info, Plug } from 'lucide-react'
 import { McpServersSettings } from './McpServersSettings'
 import { ModelSettings } from './ModelSettings'
 import { AppearanceSection } from './settings/AppearanceSection'
+import { AIServiceSection } from './settings/AIServiceSection'
 import { AboutSection } from './settings/AboutSection'
 
 interface SettingsPanelProps {
@@ -262,63 +263,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
             {/* ── AI 服务 ── */}
             {activeSection === 'ai' && (
-              <section>
-                <div className="flex items-center gap-2 mb-3">
-                  <Server size={14} className="text-mady-accent" />
-                  <h3 className="text-mady-ui font-medium">AI 服务</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label htmlFor="settings-provider" className="flex items-center gap-1.5 text-mady-caption text-mady-text-secondary mb-1">
-                      <Cpu size={11} />
-                      默认 Provider
-                    </label>
-                    <input
-                      id="settings-provider"
-                      type="text"
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                      placeholder="如 deepseek, kimi, zhipu"
-                      className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-2 focus:ring-mady-accent/20 transition-all duration-150"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="settings-model" className="flex items-center gap-1.5 text-mady-caption text-mady-text-secondary mb-1">
-                      <Cpu size={11} />
-                      默认模型
-                    </label>
-                    <input
-                      id="settings-model"
-                      type="text"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder="如 deepseek-v4-flash, kimi-k2.6"
-                      className="w-full rounded-lg px-3 py-2 bg-mady-bg-secondary border border-mady-border text-mady-body text-mady-text-primary placeholder-mady-text-tertiary outline-none focus:border-mady-accent focus:ring-2 focus:ring-mady-accent/20 transition-all duration-150"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <p className="text-mady-caption text-mady-text-tertiary">
-                      切换仅对新建会话生效，已有会话保持原有模型
-                    </p>
-                    <button
-                      onClick={handleSaveAI}
-                      disabled={!aiDirty || saving}
-                      className={`
-                        px-3 py-1.5 rounded-lg text-mady-small transition-colors
-                        ${aiDirty && !saving
-                          ? 'bg-mady-accent text-white hover:bg-mady-accent-hover'
-                          : 'bg-mady-bg-secondary text-mady-text-tertiary cursor-not-allowed'
-                        }
-                      `}
-                    >
-                      {saving ? '保存中…' : '保存'}
-                    </button>
-                  </div>
-                </div>
-              </section>
+              <AIServiceSection
+                provider={provider}
+                model={model}
+                saving={saving}
+                dirty={aiDirty}
+                onProviderChange={setProvider}
+                onModelChange={setModel}
+                onSave={handleSaveAI}
+              />
             )}
 
             {/* ── 模型与推理（C08） ── */}
