@@ -187,6 +187,7 @@
 | M74 | 工具 inputSchema 固化 | 新增 `tools/schema_contract_test.go` + golden：31 个内置工具 Parameters 快照，任何形状变化测试即红 | ✅ 2026-11-28 |
 | M75 | TUI 渲染回归取样 | 新增 `tui/component/render_golden_test.go` + golden：7 个工具卡/审批卡整卡输出快照 + 行宽硬约束 | ✅ 2026-11-28 |
 | M76 | TUI 转录渲染取样 | 新增 `tui/chat/render_golden_test.go` + golden：7 个对话转录用例（CJK 换行/表格/流式光标/工具行/代码块/错误） | ✅ 2026-11-28 |
+| M77 | 输入区 + 任务面板取样 | 复用 `component/golden_test.go` 基建：输入区 3 例（占位符/CJK 多行/长折行）+ 任务面板 2 例（四态混合/窄宽截断） | ✅ 2026-11-28 |
 
 ### 阶段 9 — 协议面专项
 
@@ -1531,6 +1532,28 @@
   `make doc-check check-arch verify-layers debt-check metrics-trend` 全绿
   （AGENTS.md / CLAUDE.md 计数同步 1884 = 1236 + 648）
 - **提交**：b5aadf6a（test）、6db55625（docs + changelog）
+### M77（2026-11-28）输入区与任务面板渲染取样 ✅
+
+- **范围**：M75/M76 覆盖了工具卡、审批卡与对话转录，**输入区**（每轮必经）与**任务面板**
+  （plantask 事件汇聚处）仍无整段快照。本卡补齐，只加测试，零渲染代码改动
+- **做法**：直接复用 `component/golden_test.go` 已有的 golden 基建（`TestMain` 固定
+  Light+256 色调色板、强制开色、`core.SetCJKMode(false)`；`goldenMatch` + `GOLDEN_UPDATE=1` 更新），
+  不新造第二套约定；`.golden` 文件已被 pre-commit 的 `trailing-whitespace` / `end-of-file-fixer` 排除，
+  行尾 padding 可原样保留
+- **新增用例**（写入 `golden_test.go`）：
+  - `input_placeholder_w40` — 空态占位符
+  - `input_cjk_multiline_w80` — 三行 CJK 输入 + 光标标记
+  - `input_long_wrap_w40` — 长中文在 40 列折行
+  - `todo_panel_mixed_w60` — completed / in_progress / pending / canceled 四态 + 优先级徽标 + 摘要计数
+  - `todo_panel_narrow_w40` — 窄宽度下 CJK 内容截断为 `…`
+- **负控制**：把 `todo_panel_mixed_w60.golden` 的 `Pending: 1` 改为 `Pending: 2`，测试立即失败；
+  恢复后全绿
+- **P2 发现（登记，不在本卡修）**：M75 的 `tui/component/render_golden_test.go` 与本文件已有的
+  `TestGoldenToolCard` / `TestGoldenApprovalCard` 覆盖重叠（同一组函数、宽度 40/80 交集），且引入了
+  另一套 `-args -update` + 手动裁空格的约定。建议后续一张清理卡：把 M75 独有的 `failed` 状态与
+  CJK 截断用例并入本文件后删除该文件与其 `.txt` 快照
+- **门禁**：`go vet ./...`（tui 模块）全绿；`golangci-lint run ./tui/component/...` **0 issues**；
+  `go test ./component` 与 `go test -race ./component` 全绿；`make doc-check` 通过（Go 文件数不变）
 
 ### M66（2026-11-28）协议契约基线：七层契约面盘点 ✅
 
