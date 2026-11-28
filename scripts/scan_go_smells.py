@@ -7,8 +7,10 @@
 指标计数必须可脚本复现，靠自觉维护的清单视为不存在。
 
 只做**机械近似统计**（启发式），不替代人工审阅：
-  - 裸 fmt.Print/Println/Printf/Fprint/Fprintln 调试残留（应走结构化 log/tracing/i18n，
-    GO-STANDARDS §0.1#4；不含 Fprintf——带显式 writer 多为写文件/错误输出，全仓 683 处计入会淹没信号）
+  - 裸 fmt.Print/Println/Printf/Fprint/Fprintln 调试残留（库代码应走结构化 log/tracing/i18n；
+    不含 Fprintf——带显式 writer 多为写文件/错误输出，全仓 683 处计入会淹没信号）。
+    CLI 输出层（`cmd/` 与 `package main`）的同类命中不计入库代码指标，单独计入 cli_fmt，
+    规范见 docs/cli-output-standards.md
   - 被忽略的 error（`_ = <expr>`、RHS 显式含 err 字样的 `x, _ := f()`，GO-STANDARDS §0.1#1；
     无法静态判断丢弃值是否 error，宁可漏报不误报）
   - 静默吞错无意图注释（`if err != nil { return ... }` / `if err := f(); err != nil { ... }`
@@ -54,6 +56,12 @@ SUBMODULES = ("tui", "desktop")
 
 # 排除目录（第三方样例、生成产物、前端源码不属于 Go 审阅范围）。
 EXCLUDE_DIR_PARTS = ("vendor", "node_modules", ".git", "third_party")
+
+# CLI 输出层：`cmd/` 下的入口与子命令，以及任何 `package main`（example/、scripts/ 的
+# 示例与工具）。这些文件的 fmt.Print* 是面向终端用户的正常输出，不是库代码调试残留
+# ——规范家为 docs/cli-output-standards.md（通道约定与豁免判据）。
+# 单独计入 cli_fmt 指标而非静默丢弃，保证「事实清单可验证」：豁免可见、可复核。
+CLI_OUTPUT_DIRS = ("cmd",)
 
 # 启发式正则（跨行用 re.MULTILINE 处理）。
 _BARE_FMT_RE = re.compile(r"\bfmt\.(Print|Println|Printf|Fprint|Fprintln)\(")
@@ -152,6 +160,7 @@ def analyze_file(path: str) -> dict:
     stats = {
         "files": 1,
         "bare_fmt": 0,
+        "cli_fmt": 0,
         "ignored_err": 0,
         "silent_return": 0,
         "fixme": 0,
@@ -164,9 +173,13 @@ def analyze_file(path: str) -> dict:
     except (OSError, UnicodeDecodeError):
         return stats
 
-    # main 包：fmt.Print* 是 CLI/示例的正常输出，不计入裸 fmt 调试残留。
+    # CLI 输出层：cmd/ 下的全部文件，加上任何 package main（example/、scripts/ 的
+    # 示例与工具）——fmt.Print* 在这里是终端输出的正常手段，计入 cli_fmt 单独展示，
+    # 不计入库代码「裸 fmt」指标（规范见 docs/cli-output-standards.md）。
     # package 声明可能不在文件头部（license 头/生成注释），扫全文件。
     is_main_pkg = any(l.strip() == "package main" for l in lines)
+    rel_parts = os.path.relpath(path, REPO_ROOT).split(os.sep)
+    is_cli_output = is_main_pkg or rel_parts[0] in CLI_OUTPUT_DIRS
 
     brace_depth = 0
     func_start = None
@@ -179,8 +192,9 @@ def analyze_file(path: str) -> dict:
             # 代码部分：去掉行尾注释再判定，避免注释里的 err/error 影响计数。
             code = re.sub(r"\s//.*$", "", line)
             ignored = _parse_scan_ignore(line)
-            if not is_main_pkg and "bare_fmt" not in ignored:
-                stats["bare_fmt"] += len(_BARE_FMT_RE.findall(code))
+            if "bare_fmt" not in ignored:
+                bare = len(_BARE_FMT_RE.findall(code))
+                stats["cli_fmt" if is_cli_output else "bare_fmt"] += bare
             if "ignored_err" not in ignored:
                 stats["ignored_err"] += _count_ignored_err(code)
 
@@ -236,8 +250,9 @@ def analyze_file(path: str) -> dict:
 
 
 def scan_dirs(dirs: list[str], include_tests: bool = False) -> dict:
-    totals = {k: 0 for k in ("files", "bare_fmt", "ignored_err", "silent_return",
-                             "fixme", "uncommented_exported", "long_funcs")}
+    totals = {k: 0 for k in ("files", "bare_fmt", "cli_fmt", "ignored_err",
+                             "silent_return", "fixme", "uncommented_exported",
+                             "long_funcs")}
     per_dir: dict[str, dict] = {}
     for d in dirs:
         if not os.path.isdir(os.path.join(REPO_ROOT, d)):
@@ -263,7 +278,8 @@ def render_human(res: dict) -> str:
     lines.append("  气味指标            命中数")
     lines.append("  " + "-" * 32)
     rows = [
-        ("裸 fmt.Print/Println", t["bare_fmt"]),
+        ("裸 fmt（库代码）", t["bare_fmt"]),
+        ("CLI 层 fmt（豁免）", t["cli_fmt"]),
         ("被忽略的 error", t["ignored_err"]),
         ("静默吞错无注释", t["silent_return"]),
         ("TODO/FIXME/HACK", t["fixme"]),
@@ -277,8 +293,9 @@ def render_human(res: dict) -> str:
     for d, a in sorted(res["per_dir"].items(), key=lambda x: x[1]["files"], reverse=True):
         lines.append(
             f"  {d:<22} 文件{a['files']:>5}  裸fmt{a['bare_fmt']:>4}  "
-            f"忽略err{a['ignored_err']:>4}  吞错{a['silent_return']:>4}  "
-            f"TODO{a['fixme']:>4}  未注释{a['uncommented_exported']:>4}  长func{a['long_funcs']:>4}"
+            f"CLIfmt{a['cli_fmt']:>4}  忽略err{a['ignored_err']:>4}  "
+            f"吞错{a['silent_return']:>4}  TODO{a['fixme']:>4}  "
+            f"未注释{a['uncommented_exported']:>4}  长func{a['long_funcs']:>4}"
         )
     return "\n".join(lines)
 
@@ -290,7 +307,8 @@ def main() -> int:
     ap.add_argument("--include-tests", action="store_true",
                     help="计入 *_test.go（默认排除，测试函数无需导出注释）")
     ap.add_argument("--json", action="store_true", help="输出 JSON")
-    ap.add_argument("--fail", action="store_true", help="命中裸 fmt 即 exit 1（门禁模式）")
+    ap.add_argument("--fail", action="store_true",
+                    help="库代码命中裸 fmt 即 exit 1（门禁模式；CLI 层 cli_fmt 不计）")
     args = ap.parse_args()
 
     dirs: list[str] = list(args.dirs) if args.dirs else list(DEFAULT_DIRS)

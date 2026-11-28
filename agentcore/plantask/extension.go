@@ -163,6 +163,7 @@ func (e *Extension) loadSession(_ context.Context, id string) (*PlanTaskSession,
 	s, err := e.cfg.Store.Load(context.Background(), id)
 	if err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
+			// 未找到→按对外契约映射为无活动会话；IO/权限/解析失败走下方原样上抛。
 			return nil, ErrNoActiveSession
 		}
 		return nil, err
