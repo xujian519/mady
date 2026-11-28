@@ -15,12 +15,14 @@ import { getAISettings, setAISettings, checkUpdate, health } from '@/lib/backend
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import type { UpdateInfo } from '@/lib/backend'
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, Sun, Server, Check, AlertCircle, Brain, Info, Plug } from 'lucide-react'
+import { X, Check, AlertCircle } from 'lucide-react'
 import { McpServersSettings } from './McpServersSettings'
 import { ModelSettings } from './ModelSettings'
 import { AppearanceSection } from './settings/AppearanceSection'
 import { AIServiceSection } from './settings/AIServiceSection'
 import { AboutSection } from './settings/AboutSection'
+import { SettingsNav } from './settings/SettingsNav'
+import type { SettingsSectionId } from './settings/SettingsNav'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -31,9 +33,6 @@ interface Toast {
   kind: 'success' | 'error'
   message: string
 }
-
-/** 全屏设置页左侧导航分区 ID（规范 §3.3 SettingsNav）。 */
-type SettingsSectionId = 'appearance' | 'ai' | 'model' | 'mcp' | 'about'
 
 /** 设置面板覆盖层：外观、AI 服务、模型、MCP 与关于等分区。 */
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
@@ -159,15 +158,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     }
   }
 
-  // 左侧导航分区（规范 §3.3：SettingsNav 200px、导航项 32px、图标 + 13px 文字）
-  const sections: { id: SettingsSectionId; label: string; icon: React.ReactNode }[] = [
-    { id: 'appearance', label: '外观', icon: <Sun size={14} /> },
-    { id: 'ai', label: 'AI 服务', icon: <Server size={14} /> },
-    { id: 'model', label: '模型与推理', icon: <Brain size={14} /> },
-    { id: 'mcp', label: 'MCP 服务器', icon: <Plug size={14} /> },
-    { id: 'about', label: '关于', icon: <Info size={14} /> },
-  ]
-
   const handleThemeChange = (mode: ThemeMode) => {
     setMode(mode)
     updateSettings({ themeMode: mode })
@@ -235,23 +225,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* 左侧导航：200px 固定，导航项 32px（规范 §3.3） */}
-        <nav className="w-[var(--mady-settings-nav-width)] shrink-0 border-r border-mady-separator p-2 space-y-0.5 overflow-y-auto">
-          {sections.map((sec) => (
-            <button
-              key={sec.id}
-              onClick={() => setActiveSection(sec.id)}
-              aria-current={activeSection === sec.id ? 'page' : undefined}
-              className={`w-full flex items-center gap-2 px-3 h-8 rounded-md text-mady-ui transition-colors duration-100 ${
-                activeSection === sec.id
-                  ? 'bg-mady-accent-soft text-mady-accent font-medium'
-                  : 'text-mady-text-secondary hover:bg-mady-bg-hover hover:text-mady-text-primary'
-              }`}
-            >
-              {sec.icon}
-              {sec.label}
-            </button>
-          ))}
-        </nav>
+        <SettingsNav activeSection={activeSection} onSelect={setActiveSection} />
 
         {/* 内容区：padding 32px 40px，内容最大 720px（规范 §3.3） */}
         <div className="flex-1 overflow-y-auto px-10 py-8">
