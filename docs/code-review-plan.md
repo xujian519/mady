@@ -1094,4 +1094,4 @@
 - **结果**：指标零变化（root 0/0/0/0/35/3；tui 0/0/0/0/10/0；desktop 全 0），基线即 M45 终态
 - **发现分级**：P0 0 项；P2 0 项
 - **门禁**：`go build ./... && go vet ./...` 全绿；`golangci-lint run ./...` **0 issues**；`go test -race ./...` 128 包通过（唯一失败为预存 `knowledge/sqlite TestSearchLaws`）；`make check-arch doc-check verify-layers debt-check metrics-trend` 通过；CI YAML 经 ruby YAML 解析通过；`actionlint` 对 `ci.yml` 仅报 2 处预存 shellcheck 风格问题（mod-tidy job 的 `if [ $? -ne 0 ]`，非本卡改动，CI 未接 actionlint）
-- **提交**：待回填
+- **提交**：4eaca6dc（feat）、57868fc3（docs + changelog）
